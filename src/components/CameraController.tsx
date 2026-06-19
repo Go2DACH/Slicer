@@ -4,6 +4,7 @@ import { useThree } from '@react-three/fiber';
 import { OrbitControls, PerspectiveCamera, OrthographicCamera } from '@react-three/drei';
 import type { OrbitControls as OrbitControlsImpl } from 'three-stdlib';
 import { useStore } from '../store';
+import WalkControls from './WalkControls';
 
 export default function CameraController() {
   const modelObject = useStore((s) => s.modelObject);
@@ -11,6 +12,7 @@ export default function CameraController() {
   const alignOffset = useStore((s) => s.alignOffset);
   const resetViewToken = useStore((s) => s.resetViewToken);
   const topDown = useStore((s) => s.topDown);
+  const walkMode = useStore((s) => s.walkMode);
 
   const controlsRef = useRef<OrbitControlsImpl>(null);
   const perspRef = useRef<THREE.PerspectiveCamera>(null);
@@ -19,7 +21,7 @@ export default function CameraController() {
 
   // Fit the active camera to the model bounding box.
   const fit = () => {
-    if (!modelObject) return;
+    if (!modelObject || walkMode) return;
     scene.updateMatrixWorld(true);
     const box = new THREE.Box3().setFromObject(modelObject);
     if (box.isEmpty()) return;
@@ -76,24 +78,28 @@ export default function CameraController() {
 
   return (
     <>
-      <PerspectiveCamera ref={perspRef} makeDefault={!topDown} fov={50} position={[5, 5, 5]} />
+      <PerspectiveCamera ref={perspRef} makeDefault={!topDown} fov={walkMode ? 70 : 50} position={[5, 5, 5]} />
       <OrthographicCamera ref={orthoRef} makeDefault={topDown} position={[0, 100, 0]} />
-      <OrbitControls
-        key={topDown ? 'ortho' : 'persp'}
-        ref={controlsRef}
-        makeDefault
-        enableRotate={!topDown}
-        enableDamping
-        dampingFactor={0.12}
-        rotateSpeed={0.9}
-        // In plan view left-drag pans; otherwise it orbits. Point picking uses
-        // click-vs-drag detection, so left-drag-to-orbit doesn't place points.
-        mouseButtons={{
-          LEFT: topDown ? THREE.MOUSE.PAN : THREE.MOUSE.ROTATE,
-          MIDDLE: THREE.MOUSE.DOLLY,
-          RIGHT: THREE.MOUSE.PAN,
-        }}
-      />
+      {walkMode ? (
+        <WalkControls />
+      ) : (
+        <OrbitControls
+          key={topDown ? 'ortho' : 'persp'}
+          ref={controlsRef}
+          makeDefault
+          enableRotate={!topDown}
+          enableDamping
+          dampingFactor={0.12}
+          rotateSpeed={0.9}
+          // In plan view left-drag pans; otherwise it orbits. Point picking uses
+          // click-vs-drag detection, so left-drag-to-orbit doesn't place points.
+          mouseButtons={{
+            LEFT: topDown ? THREE.MOUSE.PAN : THREE.MOUSE.ROTATE,
+            MIDDLE: THREE.MOUSE.DOLLY,
+            RIGHT: THREE.MOUSE.PAN,
+          }}
+        />
+      )}
     </>
   );
 }

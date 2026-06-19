@@ -9,8 +9,21 @@ export default function HintBar() {
   const alignPts = useStore((s) => s.alignPoints.length);
   const openingPlaceType = useStore((s) => s.openingPlaceType);
   const pendingWall = useStore((s) => s.pendingWallPoints.length);
+  const walkMode = useStore((s) => s.walkMode);
 
   if (!modelObject) return null;
+
+  if (walkMode) {
+    return (
+      <div className="hint-bar">
+        <b>Begehung:</b> Klicken zum Umsehen · <span className="kbd">W</span>
+        <span className="kbd">A</span>
+        <span className="kbd">S</span>
+        <span className="kbd">D</span> laufen · <span className="kbd">Q</span>/<span className="kbd">E</span> hoch/runter ·{' '}
+        <span className="kbd">Shift</span> schneller · <span className="kbd">Esc</span> Maus frei
+      </div>
+    );
+  }
 
   let text: React.ReactNode = null;
 
