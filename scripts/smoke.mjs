@@ -2,7 +2,7 @@
 // is handled by the caller; here we just drive a browser against a given URL.
 import puppeteer from 'puppeteer';
 
-const BASE = process.env.SMOKE_URL ?? 'http://localhost:4173/slicer/';
+const BASE = process.env.SMOKE_URL ?? 'http://localhost:4173/Slicer/';
 
 function fail(msg) {
   console.error('FAIL:', msg);
