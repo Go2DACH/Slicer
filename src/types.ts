@@ -50,6 +50,8 @@ export interface Opening {
 
 export interface ModelInfo {
   triangleCount: number;
+  /** Number of points for point-cloud models (0 for meshes). */
+  pointCount: number;
   /** Bounding box size in raw model units [x, y, z]. */
   size: Vec3;
   fileName: string;

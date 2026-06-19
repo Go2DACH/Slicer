@@ -21,8 +21,10 @@ export default function ModelInfoCard() {
           </span>
         </div>
         <div className="row" style={{ justifyContent: 'space-between', marginTop: 4 }}>
-          <span className="muted">Dreiecke</span>
-          <span className="mono">{info.triangleCount.toLocaleString('de-DE')}</span>
+          <span className="muted">{info.pointCount > 0 ? 'Punkte' : 'Dreiecke'}</span>
+          <span className="mono">
+            {(info.pointCount > 0 ? info.pointCount : info.triangleCount).toLocaleString('de-DE')}
+          </span>
         </div>
         <div className="row" style={{ justifyContent: 'space-between', marginTop: 4 }}>
           <span className="muted">Größe (B×H×T)</span>

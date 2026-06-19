@@ -1,6 +1,6 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo } from 'react';
 import * as THREE from 'three';
-import { Canvas } from '@react-three/fiber';
+import { Canvas, useThree } from '@react-three/fiber';
 import { Grid } from '@react-three/drei';
 import { useStore } from '../store';
 import CameraController from './CameraController';
@@ -10,6 +10,18 @@ import AlignMarkers from './AlignMarkers';
 import BimOverlay from './BimOverlay';
 import GroundPlane from './GroundPlane';
 import type { Vec3 } from '../types';
+
+/** Scales the point-cloud raycast threshold to the model size so picking works. */
+function PointsRaycasterConfig() {
+  const raycaster = useThree((s) => s.raycaster);
+  const size = useStore((s) => s.modelInfo?.size);
+  useEffect(() => {
+    if (size && raycaster.params.Points) {
+      raycaster.params.Points.threshold = Math.max(Math.max(...size) * 0.004, 1e-4);
+    }
+  }, [size, raycaster]);
+  return null;
+}
 
 function Lights() {
   return (
@@ -61,6 +73,7 @@ export default function Scene() {
       }}
     >
       <Lights />
+      <PointsRaycasterConfig />
       <CameraController />
 
       <ModelObject onPick={handlePick} onHover={handleHover} />

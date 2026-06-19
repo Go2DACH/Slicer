@@ -13,6 +13,9 @@ export default function DropHint({ onPickFiles, onLoadSample }: Props) {
       <div className="formats">
         Unterstützt: <b>STL</b>, <b>OBJ</b> (+ MTL + Texturen), <b>GLB/GLTF</b> (Draco/Meshopt), <b>PLY</b>
       </div>
+      <div className="formats">
+        Farbige <b>Punktwolken</b>: <b>PLY</b>, <b>PCD</b>, <b>XYZ</b>
+      </div>
       <div className="formats small">OBJ-Sets: OBJ, MTL und Bilddateien zusammen ablegen.</div>
       <div className="row cta" style={{ marginTop: 8 }}>
         <button className="active" onClick={() => input.current?.click()}>
@@ -27,7 +30,7 @@ export default function DropHint({ onPickFiles, onLoadSample }: Props) {
         ref={input}
         type="file"
         multiple
-        accept=".stl,.obj,.mtl,.ply,.glb,.gltf,.png,.jpg,.jpeg,.bmp,.bin"
+        accept=".stl,.obj,.mtl,.ply,.glb,.gltf,.pcd,.xyz,.png,.jpg,.jpeg,.bmp,.bin"
         style={{ display: 'none' }}
         onChange={(e) => {
           const files = Array.from(e.target.files ?? []);

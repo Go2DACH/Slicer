@@ -5,10 +5,12 @@ import { MTLLoader } from 'three/examples/jsm/loaders/MTLLoader.js';
 import { PLYLoader } from 'three/examples/jsm/loaders/PLYLoader.js';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { DRACOLoader } from 'three/examples/jsm/loaders/DRACOLoader.js';
+import { PCDLoader } from 'three/examples/jsm/loaders/PCDLoader.js';
+import { XYZLoader } from 'three/examples/jsm/loaders/XYZLoader.js';
 import { MeshoptDecoder } from 'three/examples/jsm/libs/meshopt_decoder.module.js';
 import type { ModelInfo, Vec3 } from '../types';
 
-export type ModelFormat = 'stl' | 'obj' | 'ply' | 'gltf' | 'unknown';
+export type ModelFormat = 'stl' | 'obj' | 'ply' | 'gltf' | 'pcd' | 'xyz' | 'unknown';
 
 export function detectFormat(name: string): ModelFormat {
   const lower = name.toLowerCase();
@@ -16,6 +18,8 @@ export function detectFormat(name: string): ModelFormat {
   if (lower.endsWith('.obj')) return 'obj';
   if (lower.endsWith('.ply')) return 'ply';
   if (lower.endsWith('.glb') || lower.endsWith('.gltf')) return 'gltf';
+  if (lower.endsWith('.pcd')) return 'pcd';
+  if (lower.endsWith('.xyz')) return 'xyz';
   return 'unknown';
 }
 
@@ -41,6 +45,30 @@ function geometryToMesh(geometry: THREE.BufferGeometry): THREE.Mesh {
   return mesh;
 }
 
+/** Build a THREE.Points object for (colored) point clouds. */
+function geometryToPoints(geometry: THREE.BufferGeometry): THREE.Points {
+  geometry.computeBoundingBox();
+  const hasColor = !!geometry.attributes.color;
+  const size = new THREE.Vector3();
+  geometry.boundingBox!.getSize(size);
+  const diag = size.length() || 1;
+  const material = new THREE.PointsMaterial({
+    size: Math.max(diag * 0.0018, 1e-5),
+    sizeAttenuation: true,
+    vertexColors: hasColor,
+    color: hasColor ? 0xffffff : 0x88aaff,
+  });
+  const points = new THREE.Points(geometry, material);
+  points.name = 'pointcloud';
+  return points;
+}
+
+/** A PLY without faces (no index, no normals) is a point cloud. */
+function plyToObject(geometry: THREE.BufferGeometry): THREE.Object3D {
+  const isPointCloud = !geometry.index && !geometry.attributes.normal;
+  return isPointCloud ? geometryToPoints(geometry) : geometryToMesh(geometry);
+}
+
 function makeGLTFLoader(manager?: THREE.LoadingManager): GLTFLoader {
   const loader = new GLTFLoader(manager);
   const draco = new DRACOLoader();
@@ -59,6 +87,7 @@ export interface LoadOutput {
 /** Compute triangle count + bounding box size of a loaded object. */
 export function computeModelInfo(object: THREE.Object3D, fileName: string): ModelInfo {
   let triangleCount = 0;
+  let pointCount = 0;
   object.updateMatrixWorld(true);
   object.traverse((child) => {
     const mesh = child as THREE.Mesh;
@@ -66,6 +95,9 @@ export function computeModelInfo(object: THREE.Object3D, fileName: string): Mode
       const geom = mesh.geometry as THREE.BufferGeometry;
       if (geom.index) triangleCount += geom.index.count / 3;
       else if (geom.attributes.position) triangleCount += geom.attributes.position.count / 3;
+    } else if ((child as THREE.Points).isPoints) {
+      const geom = (child as THREE.Points).geometry as THREE.BufferGeometry;
+      if (geom.attributes.position) pointCount += geom.attributes.position.count;
     }
   });
   const box = new THREE.Box3().setFromObject(object);
@@ -73,6 +105,7 @@ export function computeModelInfo(object: THREE.Object3D, fileName: string): Mode
   box.getSize(size);
   return {
     triangleCount: Math.round(triangleCount),
+    pointCount,
     size: [size.x, size.y, size.z] as Vec3,
     fileName,
   };
@@ -124,7 +157,17 @@ export async function loadFromFiles(files: File[], onProgress?: ProgressCb): Pro
       }
       case 'ply': {
         const geom = await new PLYLoader(manager).loadAsync(primaryUrl, (e) => report(e, onProgress));
-        object = geometryToMesh(geom);
+        object = plyToObject(geom);
+        break;
+      }
+      case 'pcd': {
+        const pts = await new PCDLoader(manager).loadAsync(primaryUrl, (e) => report(e, onProgress));
+        object = geometryToPoints(pts.geometry);
+        break;
+      }
+      case 'xyz': {
+        const geom = await new XYZLoader(manager).loadAsync(primaryUrl, (e) => report(e, onProgress));
+        object = geometryToPoints(geom);
         break;
       }
       case 'obj': {
@@ -181,7 +224,17 @@ export async function loadFromUrl(
     }
     case 'ply': {
       const geom = await new PLYLoader().loadAsync(modelUrl, (e) => report(e, onProgress));
-      object = geometryToMesh(geom);
+      object = plyToObject(geom);
+      break;
+    }
+    case 'pcd': {
+      const pts = await new PCDLoader().loadAsync(modelUrl, (e) => report(e, onProgress));
+      object = geometryToPoints(pts.geometry);
+      break;
+    }
+    case 'xyz': {
+      const geom = await new XYZLoader().loadAsync(modelUrl, (e) => report(e, onProgress));
+      object = geometryToPoints(geom);
       break;
     }
     case 'obj': {
