@@ -33,7 +33,7 @@ jobs:
         run: npm ci
 
       - name: Build
-        # base path defaults to '/slicer/' (see vite.config.ts).
+        # base path defaults to '/Slicer/' (see vite.config.ts).
         # For a custom domain or user/org page, set BASE_PATH: '/'
         run: npm run build
 

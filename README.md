@@ -30,10 +30,11 @@ npm run preview
 ## ⚠️ GitHub-Pages base-Pfad anpassen
 
 Der base-Pfad steht in [`vite.config.ts`](./vite.config.ts) und ist standardmäßig auf
-**`/slicer/`** gesetzt (passend zu einem Repository namens `slicer`).
+**`/Slicer/`** gesetzt (exakt der Repository-Name – GitHub Pages liefert case-sensitiv aus).
 
 - **Projekt-Page** `https://<user>.github.io/<REPO>/` → base = `'/<REPO>/'`
-  (bei diesem Repo `slicer`: `'/slicer/'` – bereits korrekt).
+  (bei diesem Repo `Slicer`: `'/Slicer/'` – bereits korrekt; live unter
+  `https://go2dach.github.io/Slicer/`).
 - **User-/Org-Page oder Custom-Domain** (Auslieferung vom Domain-Root) → base = `'/'`.
 
 Override beim Build ohne Datei-Änderung:
@@ -122,7 +123,7 @@ R12-ASCII-Writer.
 node --experimental-strip-types scripts/unit.test.mts   # reine Logik (Geometrie/DXF/Einheiten)
 # Headless-Smoke-Test (Build + laufender Preview-Server nötig):
 npm run build && npm run preview &   # Server auf :4173
-SMOKE_URL=http://127.0.0.1:4173/slicer/ node scripts/smoke.mjs
+SMOKE_URL=http://127.0.0.1:4173/Slicer/ node scripts/smoke.mjs
 ```
 
 Siehe [`DECISIONS.md`](./DECISIONS.md) für getroffene Design-Entscheidungen.
