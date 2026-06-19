@@ -40,6 +40,11 @@ export default function DrawPanel() {
   const finishWallChain = useStore((s) => s.finishWallChain);
   const pendingWall = useStore((s) => s.pendingWallPoints.length);
   const unit = useStore((s) => s.unit);
+  const undo = useStore((s) => s.undo);
+  const clearBim = useStore((s) => s.clearBim);
+  const wallCount = useStore((s) => s.walls.length);
+  const openingCount = useStore((s) => s.openings.length);
+  const canUndo = useStore((s) => s.history.length > 0);
 
   return (
     <div>
@@ -94,6 +99,20 @@ export default function DrawPanel() {
             Wandkette beenden (Enter)
           </button>
         )}
+
+        <div className="row" style={{ marginTop: 10 }}>
+          <button onClick={undo} disabled={!canUndo} title="Letzte Aktion rückgängig (Ctrl+Z)">
+            ↶ Zurück
+          </button>
+          <button
+            className="danger"
+            onClick={clearBim}
+            disabled={wallCount === 0 && openingCount === 0}
+            title="Alle Wände und Öffnungen löschen"
+          >
+            🗑 Löschen
+          </button>
+        </div>
       </div>
 
       <div className="card" style={{ marginTop: 12 }}>

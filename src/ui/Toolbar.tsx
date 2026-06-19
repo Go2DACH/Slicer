@@ -71,7 +71,7 @@ export default function Toolbar({ onShare }: Props) {
         <button
           className="ghost"
           onClick={() => fileInput.current?.click()}
-          title="STL, OBJ(+MTL+Texturen), GLB/GLTF, PLY"
+          title="STL, OBJ(+MTL+Texturen), GLB/GLTF, PLY, Punktwolken (PLY/PCD/XYZ)"
         >
           Datei öffnen
         </button>
@@ -86,7 +86,7 @@ export default function Toolbar({ onShare }: Props) {
         ref={fileInput}
         type="file"
         multiple
-        accept=".stl,.obj,.mtl,.ply,.glb,.gltf,.png,.jpg,.jpeg,.bmp,.bin"
+        accept=".stl,.obj,.mtl,.ply,.glb,.gltf,.pcd,.xyz,.png,.jpg,.jpeg,.bmp,.bin"
         style={{ display: 'none' }}
         onChange={(e) => {
           const files = Array.from(e.target.files ?? []);

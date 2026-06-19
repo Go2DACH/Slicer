@@ -9,6 +9,7 @@ import { GLTFExporter } from 'three/examples/jsm/exporters/GLTFExporter.js';
 import { STLExporter } from 'three/examples/jsm/exporters/STLExporter.js';
 import { PLYExporter } from 'three/examples/jsm/exporters/PLYExporter.js';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
+import { MeshSurfaceSampler } from 'three/examples/jsm/math/MeshSurfaceSampler.js';
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
@@ -145,6 +146,59 @@ async function writeGlb() {
 }
 
 // ---------------------------------------------------------------------------
+// 1b) Colored point cloud (PLY, ASCII) sampled from the room surface
+// ---------------------------------------------------------------------------
+function hslToRgb(h, s, l) {
+  const c = (1 - Math.abs(2 * l - 1)) * s;
+  const x = c * (1 - Math.abs(((h / 60) % 2) - 1));
+  const m = l - c / 2;
+  let r = 0, g = 0, b = 0;
+  if (h < 60) [r, g, b] = [c, x, 0];
+  else if (h < 120) [r, g, b] = [x, c, 0];
+  else if (h < 180) [r, g, b] = [0, c, x];
+  else if (h < 240) [r, g, b] = [0, x, c];
+  else if (h < 300) [r, g, b] = [x, 0, c];
+  else [r, g, b] = [c, 0, x];
+  return [Math.round((r + m) * 255), Math.round((g + m) * 255), Math.round((b + m) * 255)];
+}
+
+function writeColoredPointCloud() {
+  const room = buildRoom();
+  const sampler = new MeshSurfaceSampler(room).build();
+  const N = 60000;
+  const pos = new THREE.Vector3();
+  const lines = [];
+  let minY = Infinity, maxY = -Infinity;
+  const pts = [];
+  for (let i = 0; i < N; i++) {
+    sampler.sample(pos);
+    pts.push([pos.x, pos.y, pos.z]);
+    minY = Math.min(minY, pos.y);
+    maxY = Math.max(maxY, pos.y);
+  }
+  for (const [x, y, z] of pts) {
+    const t = (y - minY) / (maxY - minY || 1);
+    const jitter = (Math.random() - 0.5) * 0.08;
+    const [r, g, b] = hslToRgb(Math.max(0, Math.min(300, t * 300 + jitter * 60)), 0.7, 0.55);
+    lines.push(`${x.toFixed(4)} ${y.toFixed(4)} ${z.toFixed(4)} ${r} ${g} ${b}`);
+  }
+  const header = [
+    'ply',
+    'format ascii 1.0',
+    `element vertex ${pts.length}`,
+    'property float x',
+    'property float y',
+    'property float z',
+    'property uchar red',
+    'property uchar green',
+    'property uchar blue',
+    'end_header',
+  ].join('\n');
+  writeFileSync(join(outDir, 'demo-pointcloud.ply'), header + '\n' + lines.join('\n') + '\n');
+  console.log(`demo-pointcloud.ply  (${pts.length} colored points)`);
+}
+
+// ---------------------------------------------------------------------------
 // 2) Textured OBJ set (OBJ + MTL + PNG)
 // ---------------------------------------------------------------------------
 function crc32(buf) {
@@ -264,5 +318,6 @@ map_Kd demo-brick.png
 }
 
 await writeGlb();
+writeColoredPointCloud();
 writeTexturedObj();
 console.log('Done. Samples written to public/models/');

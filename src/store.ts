@@ -122,6 +122,7 @@ interface AppState {
   addWallSegment: (start: Vec3, end: Vec3) => void;
   setPendingWallPoints: (pts: Vec3[]) => void;
   finishWallChain: () => void;
+  clearBim: () => void;
   removeWall: (id: string) => void;
   renameWall: (id: string, name: string) => void;
   updateWall: (id: string, patch: Partial<Wall>) => void;
@@ -342,6 +343,10 @@ export const useStore = create<AppState>((set, get) => ({
   },
   setPendingWallPoints: (pts) => set({ pendingWallPoints: pts }),
   finishWallChain: () => set({ pendingWallPoints: [] }),
+  clearBim: () => {
+    get().pushHistory();
+    set({ walls: [], openings: [], pendingWallPoints: [], selectedWallId: null, selectedOpeningId: null });
+  },
   removeWall: (id) => {
     get().pushHistory();
     set({
