@@ -23,6 +23,8 @@ export default function Toolbar({ onShare }: Props) {
   const setShowGrid = useStore((s) => s.setShowGrid);
   const setShowAxes = useStore((s) => s.setShowAxes);
   const triggerResetView = useStore((s) => s.triggerResetView);
+  const walkMode = useStore((s) => s.walkMode);
+  const setWalkMode = useStore((s) => s.setWalkMode);
   const readonly = useStore((s) => s.readonly);
   const calibrated = useStore((s) => s.calibrated);
   const modelObject = useStore((s) => s.modelObject);
@@ -56,6 +58,22 @@ export default function Toolbar({ onShare }: Props) {
         </button>
         <button onClick={triggerResetView} disabled={!modelObject} title="Ansicht zurücksetzen">
           Reset
+        </button>
+        <button
+          className={walkMode ? 'active' : ''}
+          disabled={!modelObject}
+          title="Begehung: First-Person durch das Modell laufen (WASD + Maus)"
+          onClick={() => {
+            if (walkMode) {
+              setWalkMode(false);
+              triggerResetView();
+            } else {
+              if (mode !== 'view') setMode('view');
+              setWalkMode(true);
+            }
+          }}
+        >
+          🚶 Begehung
         </button>
       </div>
 

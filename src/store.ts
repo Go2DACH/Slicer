@@ -38,6 +38,8 @@ interface AppState {
   showAxes: boolean;
   readonly: boolean;
   resetViewToken: number;
+  /** First-person walkthrough navigation. */
+  walkMode: boolean;
 
   // ---- Mode ----
   mode: AppMode;
@@ -94,6 +96,7 @@ interface AppState {
   setShowAxes: (v: boolean) => void;
   setReadonly: (v: boolean) => void;
   triggerResetView: () => void;
+  setWalkMode: (v: boolean) => void;
 
   setMode: (m: AppMode) => void;
   setMeasureTool: (t: MeasureTool) => void;
@@ -167,6 +170,7 @@ export const useStore = create<AppState>((set, get) => ({
   showAxes: true,
   readonly: false,
   resetViewToken: 0,
+  walkMode: false,
 
   mode: 'view',
   measureTool: 'distance',
@@ -227,6 +231,7 @@ export const useStore = create<AppState>((set, get) => ({
   setShowAxes: (v) => set({ showAxes: v }),
   setReadonly: (v) => set({ readonly: v }),
   triggerResetView: () => set({ resetViewToken: get().resetViewToken + 1 }),
+  setWalkMode: (v) => set({ walkMode: v }),
 
   setMode: (m) =>
     set({
@@ -237,6 +242,8 @@ export const useStore = create<AppState>((set, get) => ({
       pendingWallPoints: [],
       openingPlaceType: null,
       topDown: m === 'draw' ? get().topDown : false,
+      // Walkthrough only makes sense in view/measure modes.
+      walkMode: m === 'view' || m === 'measure' ? get().walkMode : false,
     }),
   setMeasureTool: (t) => set({ measureTool: t, pendingPoints: [], calibratePoints: [] }),
   setAlignTool: (t) => set({ alignTool: t, alignPoints: [] }),

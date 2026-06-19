@@ -71,7 +71,7 @@ export default function App() {
       <Toolbar onShare={() => setShowShare(true)} onCalibrate={() => setShowCalibrate(true)} />
 
       <div className={`main${readonly ? ' ' : ''}`}>
-        <div className="viewport">
+        <div className="viewport" id="walk-lock-target">
           <Scene />
 
           {!modelObject && !loading && (
