@@ -8,6 +8,7 @@ import ModelObject from './ModelObject';
 import MeasurementOverlay from './MeasurementOverlay';
 import AlignMarkers from './AlignMarkers';
 import BimOverlay from './BimOverlay';
+import Sketch2DOverlay from './Sketch2DOverlay';
 import GroundPlane from './GroundPlane';
 import type { Vec3 } from '../types';
 
@@ -50,6 +51,9 @@ export default function Scene() {
   const showAxes = useStore((s) => s.showAxes);
   const mode = useStore((s) => s.mode);
   const walls = useStore((s) => s.walls);
+  const rooms = useStore((s) => s.rooms);
+  const drawKind = useStore((s) => s.drawKind);
+  const sketchCount = useStore((s) => s.sketchLines.length + s.sketchCircles.length);
   const measureTool = useStore((s) => s.measureTool);
   const addPickPoint = useStore((s) => s.addPickPoint);
   const addAlignPoint = useStore((s) => s.addAlignPoint);
@@ -92,8 +96,9 @@ export default function Scene() {
       <MeasurementOverlay />
       <AlignMarkers />
 
-      {(mode === 'draw' || walls.length > 0) && <BimOverlay />}
-      {mode === 'draw' && <GroundPlane />}
+      {((mode === 'draw' && drawKind === 'bim') || walls.length > 0 || rooms.length > 0) && <BimOverlay />}
+      {((mode === 'draw' && drawKind === 'sketch2d') || sketchCount > 0) && <Sketch2DOverlay />}
+      {mode === 'draw' && drawKind !== null && <GroundPlane />}
 
       {showGrid && (
         <Grid

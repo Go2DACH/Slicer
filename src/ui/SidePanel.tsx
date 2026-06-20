@@ -5,12 +5,14 @@ import MeasurePanel from './MeasurePanel';
 import MeasurementList from './MeasurementList';
 import AlignPanel from './AlignPanel';
 import DrawPanel from './DrawPanel';
+import Sketch2DPanel from './Sketch2DPanel';
 import BimList from './BimList';
 import ExportPanel from './ExportPanel';
 import CalibrateDialog from './CalibrateDialog';
 
 export default function SidePanel() {
   const mode = useStore((s) => s.mode);
+  const drawKind = useStore((s) => s.drawKind);
   const modelObject = useStore((s) => s.modelObject);
   const [showCalibrate, setShowCalibrate] = useState(false);
 
@@ -29,12 +31,13 @@ export default function SidePanel() {
 
       {mode === 'measure' && <MeasurePanel onCalibrate={() => setShowCalibrate(true)} />}
       {mode === 'align' && <AlignPanel />}
-      {mode === 'draw' && <DrawPanel />}
+      {mode === 'draw' && drawKind === 'bim' && <DrawPanel />}
+      {mode === 'draw' && drawKind === 'sketch2d' && <Sketch2DPanel />}
       {mode === 'export' && <ExportPanel />}
 
-      <MeasurementList />
+      {mode !== 'draw' || drawKind === 'bim' ? <MeasurementList /> : null}
 
-      {(mode === 'draw' || mode === 'export') && <BimList />}
+      {((mode === 'draw' && drawKind === 'bim') || mode === 'export') && <BimList />}
 
       {showCalibrate && <CalibrateDialog onClose={() => setShowCalibrate(false)} />}
     </div>

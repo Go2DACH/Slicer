@@ -1,6 +1,6 @@
 import { snapWallDirectionXZ } from './geometry';
 import { SNAP_ANGLES } from '../types';
-import type { Vec3, Wall, Room, DrawSettings } from '../types';
+import type { Vec3, Wall, Room, DrawSettings, SketchLine, SketchCircle } from '../types';
 
 interface SnapContext {
   walls: Wall[];
@@ -69,6 +69,61 @@ export function snapDrawPoint(raw: Vec3, ctx: SnapContext): Vec3 {
       p = snapWallDirectionXZ(origin, p, prevDir, SNAP_ANGLES);
     }
     // Length grid snap (e.g. round the segment length to 10 cm steps).
+    if (drawSettings.gridSnap && metersPerRaw > 0 && drawSettings.gridStepM > 0) {
+      const dx = p[0] - origin[0];
+      const dz = p[2] - origin[2];
+      const rawLen = Math.hypot(dx, dz);
+      if (rawLen > 1e-9) {
+        const stepRaw = drawSettings.gridStepM / metersPerRaw;
+        const snappedLen = Math.max(stepRaw, Math.round(rawLen / stepRaw) * stepRaw);
+        p = [origin[0] + (dx / rawLen) * snappedLen, 0, origin[2] + (dz / rawLen) * snappedLen];
+      }
+    }
+  }
+  return p;
+}
+
+interface SketchSnapContext {
+  lines: SketchLine[];
+  circles: SketchCircle[];
+  pendingSketch: Vec3[];
+  drawSettings: DrawSettings;
+  maxDim: number;
+  metersPerRaw: number;
+  tool: 'line' | 'circle';
+}
+
+/** Snap a raw floor point for the 2D sketch (endpoints, angle, length/radius grid). */
+export function snapSketchPoint(raw: Vec3, ctx: SketchSnapContext): Vec3 {
+  const { lines, circles, pendingSketch, drawSettings, maxDim, metersPerRaw, tool } = ctx;
+  const threshold = Math.max(maxDim * 0.02, 1e-4);
+  let p: Vec3 = [raw[0], 0, raw[2]];
+
+  if (drawSettings.endpointSnap) {
+    const candidates: Vec3[] = [];
+    pendingSketch.forEach((pp) => candidates.push(pp));
+    lines.forEach((l) => {
+      candidates.push(l.a, l.b);
+    });
+    circles.forEach((c) => candidates.push(c.center));
+    let best: Vec3 | null = null;
+    let bestD = threshold;
+    for (const c of candidates) {
+      const d = Math.hypot(c[0] - p[0], c[2] - p[2]);
+      if (d < bestD) {
+        bestD = d;
+        best = c;
+      }
+    }
+    if (best) return [best[0], 0, best[2]];
+  }
+
+  if (pendingSketch.length > 0) {
+    const origin = pendingSketch[pendingSketch.length - 1];
+    if (tool === 'line' && drawSettings.angleSnap) {
+      p = snapWallDirectionXZ(origin, p, null, SNAP_ANGLES);
+    }
+    // length / radius grid snap
     if (drawSettings.gridSnap && metersPerRaw > 0 && drawSettings.gridStepM > 0) {
       const dx = p[0] - origin[0];
       const dz = p[2] - origin[2];

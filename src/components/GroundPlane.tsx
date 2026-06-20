@@ -1,34 +1,51 @@
 import { useMemo } from 'react';
 import * as THREE from 'three';
 import { useStore } from '../store';
-import { snapDrawPoint } from '../lib/drawSnap';
+import { snapDrawPoint, snapSketchPoint } from '../lib/drawSnap';
 import { METERS_PER_UNIT } from '../lib/units';
 import type { Vec3 } from '../types';
 
 /**
  * Invisible horizontal plane at world Y=0 used as the drawing surface in
- * draw mode. Handles point/angle snapping and feeds points to addDrawPoint.
+ * draw mode. Routes clicks to BIM walls or the 2D sketch depending on drawKind.
  */
 export default function GroundPlane() {
   const mode = useStore((s) => s.mode);
+  const drawKind = useStore((s) => s.drawKind);
   const walls = useStore((s) => s.walls);
   const rooms = useStore((s) => s.rooms);
   const pendingWallPoints = useStore((s) => s.pendingWallPoints);
   const drawSettings = useStore((s) => s.drawSettings);
   const openingPlaceType = useStore((s) => s.openingPlaceType);
   const drawTool = useStore((s) => s.drawTool);
+  const sketchTool = useStore((s) => s.sketchTool);
+  const sketchLines = useStore((s) => s.sketchLines);
+  const sketchCircles = useStore((s) => s.sketchCircles);
+  const pendingSketch = useStore((s) => s.pendingSketch);
   const size = useStore((s) => s.modelInfo?.size);
   const scaleFactor = useStore((s) => s.scaleFactor);
   const unit = useStore((s) => s.unit);
   const addDrawPoint = useStore((s) => s.addDrawPoint);
+  const addSketchPoint = useStore((s) => s.addSketchPoint);
   const setHoverPoint = useStore((s) => s.setHoverPoint);
 
   const maxDim = size ? Math.max(...size) : 10;
   const planeSize = useMemo(() => maxDim * 6 + 10, [maxDim]);
   const metersPerRaw = scaleFactor * (METERS_PER_UNIT[unit] ?? 1);
 
-  const snap = (x: number, z: number): Vec3 =>
-    snapDrawPoint([x, 0, z], {
+  const snap = (x: number, z: number): Vec3 => {
+    if (drawKind === 'sketch2d') {
+      return snapSketchPoint([x, 0, z], {
+        lines: sketchLines,
+        circles: sketchCircles,
+        pendingSketch,
+        drawSettings,
+        maxDim,
+        metersPerRaw,
+        tool: sketchTool,
+      });
+    }
+    return snapDrawPoint([x, 0, z], {
       walls,
       rooms,
       pendingWallPoints,
@@ -37,8 +54,9 @@ export default function GroundPlane() {
       metersPerRaw,
       rect: drawTool === 'rect',
     });
+  };
 
-  const active = mode === 'draw' && !openingPlaceType;
+  const active = mode === 'draw' && drawKind !== null && !(drawKind === 'bim' && !!openingPlaceType);
 
   return (
     <mesh
@@ -56,7 +74,9 @@ export default function GroundPlane() {
         if (e.button !== undefined && e.button !== 0) return;
         if (e.delta !== undefined && e.delta > 6) return;
         e.stopPropagation();
-        addDrawPoint(snap(e.point.x, e.point.z));
+        const p = snap(e.point.x, e.point.z);
+        if (drawKind === 'sketch2d') addSketchPoint(p);
+        else addDrawPoint(p);
       }}
     >
       <planeGeometry args={[planeSize, planeSize]} />

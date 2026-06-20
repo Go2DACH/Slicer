@@ -10,6 +10,9 @@ import type {
   Opening,
   Room,
   CameraView,
+  DrawKind,
+  SketchLine,
+  SketchCircle,
   ModelInfo,
   LoadError,
   DrawSettings,
@@ -25,6 +28,8 @@ interface HistorySnapshot {
   walls: Wall[];
   openings: Opening[];
   rooms: Room[];
+  sketchLines: SketchLine[];
+  sketchCircles: SketchCircle[];
 }
 
 interface AppState {
@@ -94,6 +99,16 @@ interface AppState {
   openingFlip: boolean;
   /** Drawing tool: free polyline walls or a rectangle room. */
   drawTool: 'wall' | 'rect';
+  /** Which kind of drawing is active (null = ask the user). */
+  drawKind: DrawKind | null;
+
+  // ---- 2D sketch ----
+  sketchLines: SketchLine[];
+  sketchCircles: SketchCircle[];
+  sketchTool: 'line' | 'circle';
+  /** In-progress sketch points (line chain start or circle center). */
+  pendingSketch: Vec3[];
+  selectedSketchId: string | null;
   /** Camera view preset (free orbit / top / bottom). */
   cameraView: CameraView;
 
@@ -156,8 +171,17 @@ interface AppState {
   setOpeningPlaceType: (t: 'door' | 'window' | null) => void;
   setOpeningFlip: (v: boolean) => void;
   setDrawTool: (t: 'wall' | 'rect') => void;
+  setDrawKind: (k: DrawKind | null) => void;
   setDrawSettings: (patch: Partial<DrawSettings>) => void;
   setCameraView: (v: CameraView) => void;
+
+  // 2D sketch
+  setSketchTool: (t: 'line' | 'circle') => void;
+  addSketchPoint: (p: Vec3) => void;
+  finishSketch: () => void;
+  removeSketch: (id: string) => void;
+  selectSketch: (id: string | null) => void;
+  clearSketch: () => void;
 
   undo: () => void;
   pushHistory: () => void;
@@ -227,6 +251,14 @@ export const useStore = create<AppState>((set, get) => ({
   openingPlaceType: null,
   openingFlip: false,
   drawTool: 'wall',
+  drawKind: null,
+
+  sketchLines: [],
+  sketchCircles: [],
+  sketchTool: 'line',
+  pendingSketch: [],
+  selectedSketchId: null,
+
   cameraView: 'free',
 
   history: [],
@@ -246,6 +278,10 @@ export const useStore = create<AppState>((set, get) => ({
       openings: [],
       rooms: [],
       pendingWallPoints: [],
+      sketchLines: [],
+      sketchCircles: [],
+      pendingSketch: [],
+      drawKind: null,
       alignQuaternion: [0, 0, 0, 1],
       alignOffset: [0, 0, 0],
       alignApplied: false,
@@ -272,7 +308,10 @@ export const useStore = create<AppState>((set, get) => ({
       calibratePoints: [],
       alignPoints: [],
       pendingWallPoints: [],
+      pendingSketch: [],
       openingPlaceType: null,
+      // Re-entering draw mode asks again which kind (BIM or 2D).
+      drawKind: m === 'draw' ? null : get().drawKind,
       // Entering draw mode defaults to the top view; leaving it returns to free.
       cameraView: m === 'draw' ? 'top' : get().cameraView === 'top' && get().mode === 'draw' ? 'free' : get().cameraView,
       // Walkthrough only makes sense in view/measure modes.
@@ -361,6 +400,8 @@ export const useStore = create<AppState>((set, get) => ({
       measurements: get().measurements.map((m) => ({ ...m, points: m.points.map(fn) })),
       walls: get().walls.map((w) => ({ ...w, start: fn(w.start), end: fn(w.end) })),
       rooms: get().rooms.map((r) => ({ ...r, points: r.points.map(fn) })),
+      sketchLines: get().sketchLines.map((l) => ({ ...l, a: fn(l.a), b: fn(l.b) })),
+      sketchCircles: get().sketchCircles.map((c) => ({ ...c, center: fn(c.center) })),
       pendingPoints: get().pendingPoints.map(fn),
       pendingWallPoints: get().pendingWallPoints.map(fn),
     });
@@ -530,16 +571,62 @@ export const useStore = create<AppState>((set, get) => ({
   setOpeningPlaceType: (t) => set({ openingPlaceType: t }),
   setOpeningFlip: (v) => set({ openingFlip: v }),
   setDrawTool: (t) => set({ drawTool: t, pendingWallPoints: [] }),
+  setDrawKind: (k) => set({ drawKind: k, pendingWallPoints: [], pendingSketch: [], openingPlaceType: null }),
   setDrawSettings: (patch) => set({ drawSettings: { ...get().drawSettings, ...patch } }),
   setCameraView: (v) => set({ cameraView: v }),
 
+  // ---- 2D sketch ----
+  setSketchTool: (t) => set({ sketchTool: t, pendingSketch: [] }),
+  addSketchPoint: (p) => {
+    const { sketchTool, pendingSketch } = get();
+    if (sketchTool === 'line') {
+      if (pendingSketch.length === 0) {
+        set({ pendingSketch: [p] });
+        return;
+      }
+      const a = pendingSketch[pendingSketch.length - 1];
+      if (Math.hypot(a[0] - p[0], a[2] - p[2]) < 1e-7) return;
+      get().pushHistory();
+      const line: SketchLine = { id: nextId('ln'), a, b: p };
+      // continue the chain from the new point (polyline of separate lines)
+      set({ sketchLines: [...get().sketchLines, line], pendingSketch: [p] });
+    } else {
+      if (pendingSketch.length === 0) {
+        set({ pendingSketch: [p] });
+        return;
+      }
+      const c = pendingSketch[0];
+      const r = Math.hypot(p[0] - c[0], p[2] - c[2]);
+      if (r < 1e-7) return;
+      get().pushHistory();
+      const circle: SketchCircle = { id: nextId('ci'), center: c, r };
+      set({ sketchCircles: [...get().sketchCircles, circle], pendingSketch: [] });
+    }
+  },
+  finishSketch: () => set({ pendingSketch: [] }),
+  removeSketch: (id) => {
+    get().pushHistory();
+    set({
+      sketchLines: get().sketchLines.filter((l) => l.id !== id),
+      sketchCircles: get().sketchCircles.filter((c) => c.id !== id),
+      selectedSketchId: get().selectedSketchId === id ? null : get().selectedSketchId,
+    });
+  },
+  selectSketch: (id) => set({ selectedSketchId: id }),
+  clearSketch: () => {
+    get().pushHistory();
+    set({ sketchLines: [], sketchCircles: [], pendingSketch: [], selectedSketchId: null });
+  },
+
   pushHistory: () => {
-    const { measurements, walls, openings, rooms, history } = get();
+    const { measurements, walls, openings, rooms, sketchLines, sketchCircles, history } = get();
     const snap: HistorySnapshot = {
       measurements: measurements.map((m) => ({ ...m, points: m.points.map((p) => [...p] as Vec3) })),
       walls: walls.map((w) => ({ ...w })),
       openings: openings.map((o) => ({ ...o })),
       rooms: rooms.map((r) => ({ ...r, points: r.points.map((p) => [...p] as Vec3) })),
+      sketchLines: sketchLines.map((l) => ({ ...l })),
+      sketchCircles: sketchCircles.map((c) => ({ ...c })),
     };
     set({ history: [...history.slice(-49), snap] });
   },
@@ -552,14 +639,18 @@ export const useStore = create<AppState>((set, get) => ({
       walls: last.walls,
       openings: last.openings,
       rooms: last.rooms,
+      sketchLines: last.sketchLines,
+      sketchCircles: last.sketchCircles,
       history: history.slice(0, -1),
       pendingPoints: [],
       pendingWallPoints: [],
+      pendingSketch: [],
     });
   },
 
   deleteSelection: () => {
-    const { selectedMeasurementId, selectedWallId, selectedOpeningId, selectedRoomId } = get();
+    const { selectedMeasurementId, selectedWallId, selectedOpeningId, selectedRoomId, selectedSketchId } = get();
+    if (selectedSketchId) return get().removeSketch(selectedSketchId);
     if (selectedOpeningId) return get().removeOpening(selectedOpeningId);
     if (selectedRoomId) return get().removeRoom(selectedRoomId);
     if (selectedWallId) return get().removeWall(selectedWallId);

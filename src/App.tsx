@@ -10,6 +10,7 @@ import CalibrateDialog from './ui/CalibrateDialog';
 import ShareDialog from './ui/ShareDialog';
 import HintBar from './ui/HintBar';
 import TouchActions from './ui/TouchActions';
+import DrawKindDialog from './ui/DrawKindDialog';
 
 export default function App() {
   const { loadFiles, loadUrl } = useModelLoading();
@@ -19,6 +20,8 @@ export default function App() {
   const loading = useStore((s) => s.loading);
   const loadProgress = useStore((s) => s.loadProgress);
   const loadError = useStore((s) => s.loadError);
+  const mode = useStore((s) => s.mode);
+  const drawKind = useStore((s) => s.drawKind);
   const panelOpen = useStore((s) => s.panelOpen);
   const setPanelOpen = useStore((s) => s.setPanelOpen);
   const calibratePoints = useStore((s) => s.calibratePoints);
@@ -116,6 +119,7 @@ export default function App() {
         {panelOpen && <SidePanel />}
       </div>
 
+      {modelObject && mode === 'draw' && drawKind === null && <DrawKindDialog />}
       {showCalibrate && <CalibrateDialog onClose={() => setShowCalibrate(false)} />}
       {showShare && <ShareDialog onClose={() => setShowShare(false)} />}
     </div>
