@@ -51,6 +51,12 @@ interface AppState {
   walkMode: boolean;
   /** Side panel visibility (toggle to free the viewport on mobile). */
   panelOpen: boolean;
+  /** X-ray: render the model 50% transparent to see hidden parts. */
+  xray: boolean;
+  /** Horizontal section: hide everything above clipPercent of the height. */
+  clipEnabled: boolean;
+  /** Section height as a percentage (10..100) of the model height. */
+  clipPercent: number;
 
   // ---- Mode ----
   mode: AppMode;
@@ -127,6 +133,9 @@ interface AppState {
   triggerResetView: () => void;
   setWalkMode: (v: boolean) => void;
   setPanelOpen: (v: boolean) => void;
+  setXray: (v: boolean) => void;
+  setClipEnabled: (v: boolean) => void;
+  setClipPercent: (p: number) => void;
 
   setMode: (m: AppMode) => void;
   setMeasureTool: (t: MeasureTool) => void;
@@ -220,6 +229,9 @@ export const useStore = create<AppState>((set, get) => ({
   resetViewToken: 0,
   walkMode: false,
   panelOpen: typeof window !== 'undefined' && window.innerWidth < 1024 ? false : true,
+  xray: false,
+  clipEnabled: false,
+  clipPercent: 50,
 
   mode: 'view',
   measureTool: 'distance',
@@ -300,6 +312,9 @@ export const useStore = create<AppState>((set, get) => ({
   triggerResetView: () => set({ resetViewToken: get().resetViewToken + 1 }),
   setWalkMode: (v) => set({ walkMode: v }),
   setPanelOpen: (v) => set({ panelOpen: v }),
+  setXray: (v) => set({ xray: v }),
+  setClipEnabled: (v) => set({ clipEnabled: v }),
+  setClipPercent: (p) => set({ clipPercent: Math.max(10, Math.min(100, Math.round(p / 10) * 10)) }),
 
   setMode: (m) =>
     set({

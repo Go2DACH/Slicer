@@ -447,6 +447,52 @@ a {
   white-space: nowrap;
 }
 
+/* Floating view tools (X-ray + section slider) on the left of the viewport. */
+.view-tools {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  z-index: 26;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: center;
+  background: rgba(20, 23, 28, 0.92);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 8px;
+  box-shadow: var(--shadow);
+}
+.view-tools button {
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  font-size: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.clip-slider {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding-top: 2px;
+}
+.clip-slider input[type='range'] {
+  writing-mode: vertical-lr;
+  direction: rtl;
+  width: 28px;
+  height: 150px;
+  accent-color: var(--accent);
+}
+.clip-slider .pct {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--accent);
+  font-family: ui-monospace, monospace;
+}
+
 /* Larger, finger-friendly targets on touch devices. */
 @media (pointer: coarse) {
   button {
