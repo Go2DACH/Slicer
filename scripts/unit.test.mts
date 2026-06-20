@@ -1,7 +1,7 @@
 // Pure-logic unit tests. Run with: node --experimental-strip-types scripts/unit.test.mts
 import assert from 'node:assert';
 import { rawDistance, rawPolylineLength, rawPolygonArea, snapAngleXZ } from '../src/lib/geometry.ts';
-import { formatLength, formatArea } from '../src/lib/units.ts';
+import { formatLength, formatArea, unitPresetScale } from '../src/lib/units.ts';
 import { buildFloorPlanDxf } from '../src/lib/dxf.ts';
 import type { Wall, Opening } from '../src/types.ts';
 
@@ -26,6 +26,12 @@ ok('angle snap to 90deg', Math.abs(snapped[0]) < 1e-6 && snapped[2] > 0.9);
 // units with calibration scaleFactor=2 (1 unit -> 2 m)
 ok('formatLength calibrated', formatLength(3, 2, 'm') === '6.00 m');
 ok('formatArea calibrated', formatArea(4, 2, 'm') === '16.00 m²'); // 4 units^2 * 2^2 = 16
+
+// unit presets: a 60mm Benchy (raw=60) must read 60 mm, 6 cm, 0.06 m
+ok('preset mm->mm', formatLength(60, unitPresetScale('mm', 'mm'), 'mm') === '60.00 mm');
+ok('preset mm->cm', formatLength(60, unitPresetScale('mm', 'cm'), 'cm') === '6.00 cm');
+ok('preset mm->m', formatLength(60, unitPresetScale('mm', 'm'), 'm') === '0.060 m');
+ok('preset in->mm', Math.abs(60 * unitPresetScale('in', 'mm') - 1524) < 1e-6); // 60 in = 1524 mm
 
 // DXF
 const walls: Wall[] = [

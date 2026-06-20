@@ -13,7 +13,10 @@ export default function CalibrateDialog({ onClose }: { onClose: () => void }) {
   const calibrated = useStore((s) => s.calibrated);
   const scaleFactor = useStore((s) => s.scaleFactor);
 
+  const setUnitPreset = useStore((s) => s.setUnitPreset);
   const [real, setReal] = useState('1.0');
+  const [modelUnit, setModelUnit] = useState('mm');
+  const [displayUnit, setDisplayUnit] = useState('mm');
 
   const raw = calibratePoints.length === 2 ? rawDistance(calibratePoints[0], calibratePoints[1]) : 0;
 
@@ -35,9 +38,47 @@ export default function CalibrateDialog({ onClose }: { onClose: () => void }) {
     <div className="dialog-backdrop" onClick={onClose}>
       <div className="dialog" onClick={(e) => e.stopPropagation()}>
         <h2>Maßstab kalibrieren</h2>
+
+        <div className="card" style={{ marginBottom: 14 }}>
+          <h3 style={{ marginTop: 0 }}>Schnell: Modelleinheit wählen</h3>
+          <p className="small muted" style={{ marginTop: 0 }}>
+            Wenn du weißt, in welcher Einheit das Modell vorliegt. <b>STL-Dateien sind fast immer in Millimeter</b>{' '}
+            (3D-Druck-Standard) — ein 3DBenchy ist z. B. 60&nbsp;mm, nicht 60&nbsp;m.
+          </p>
+          <div className="field-row">
+            <div className="field">
+              <label>Modell ist in</label>
+              <select value={modelUnit} onChange={(e) => setModelUnit(e.target.value)}>
+                <option value="mm">Millimeter (mm)</option>
+                <option value="cm">Zentimeter (cm)</option>
+                <option value="m">Meter (m)</option>
+                <option value="in">Zoll (in)</option>
+              </select>
+            </div>
+            <div className="field">
+              <label>Anzeige in</label>
+              <select value={displayUnit} onChange={(e) => setDisplayUnit(e.target.value)}>
+                <option value="mm">Millimeter (mm)</option>
+                <option value="cm">Zentimeter (cm)</option>
+                <option value="m">Meter (m)</option>
+              </select>
+            </div>
+          </div>
+          <button
+            className="active"
+            style={{ marginTop: 10 }}
+            onClick={() => {
+              setUnitPreset(modelUnit, displayUnit);
+              onClose();
+            }}
+          >
+            Einheit übernehmen
+          </button>
+        </div>
+
         <p className="small muted">
-          Klicke zwei Punkte mit bekanntem realem Abstand (z. B. eine Türbreite oder ein Maßband im Scan) und gib den echten
-          Wert ein. Daraus wird ein globaler Maßstabsfaktor berechnet.
+          Oder per Referenzmaß: Klicke zwei Punkte mit bekanntem realem Abstand (z. B. eine Türbreite oder ein Maßband im
+          Scan) und gib den echten Wert ein.
         </p>
 
         {calibrated && (

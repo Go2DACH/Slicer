@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { unitPresetScale } from './lib/units';
 import type {
   AppMode,
   MeasureTool,
@@ -114,6 +115,8 @@ interface AppState {
   applyCalibration: (realDistance: number) => void;
   resetCalibration: () => void;
   setUnit: (u: string) => void;
+  /** Quick-calibrate by declaring the model's raw unit and a display unit. */
+  setUnitPreset: (modelUnit: string, displayUnit: string) => void;
 
   setAlignment: (q: [number, number, number, number], offset: Vec3) => void;
   transformAnnotations: (fn: (p: Vec3) => Vec3) => void;
@@ -315,6 +318,8 @@ export const useStore = create<AppState>((set, get) => ({
   },
   resetCalibration: () => set({ scaleFactor: 1, calibrated: false, calibratePoints: [] }),
   setUnit: (u) => set({ unit: u }),
+  setUnitPreset: (modelUnit, displayUnit) =>
+    set({ scaleFactor: unitPresetScale(modelUnit, displayUnit), unit: displayUnit, calibrated: true, calibratePoints: [] }),
 
   setAlignment: (q, offset) => {
     // Mark as aligned whenever an alignment is applied (even a near-identity one,
