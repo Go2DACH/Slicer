@@ -47,7 +47,7 @@ export default function Sketch2DOverlay() {
       {lines.map((l) => {
         const sel = selectedSketchId === l.id;
         return (
-          <group key={l.id} onClick={(e) => { e.stopPropagation(); selectSketch(l.id); }}>
+          <group key={l.id} onClick={drawing ? undefined : (e) => { e.stopPropagation(); selectSketch(l.id); }}>
             <Line
               points={[new THREE.Vector3(l.a[0], Y, l.a[2]), new THREE.Vector3(l.b[0], Y, l.b[2])]}
               color={sel ? '#ffd54f' : '#7fd4ff'}
@@ -64,7 +64,7 @@ export default function Sketch2DOverlay() {
       {circles.map((c) => {
         const sel = selectedSketchId === c.id;
         return (
-          <group key={c.id} onClick={(e) => { e.stopPropagation(); selectSketch(c.id); }}>
+          <group key={c.id} onClick={drawing ? undefined : (e) => { e.stopPropagation(); selectSketch(c.id); }}>
             <Line points={circlePoints(c.center, c.r)} color={sel ? '#ffd54f' : '#54e0c7'} lineWidth={sel ? 4 : 2.5} depthTest={false} />
             <Html position={[c.center[0], Y, c.center[2]]} center style={{ pointerEvents: 'none' }} zIndexRange={[30, 0]}>
               <div className="measure-label area">r {formatLength(c.r, scaleFactor, unit)}</div>

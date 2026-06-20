@@ -1,6 +1,12 @@
 // Pure-logic unit tests. Run with: node --experimental-strip-types scripts/unit.test.mts
 import assert from 'node:assert';
-import { rawDistance, rawPolylineLength, rawPolygonArea, snapAngleXZ } from '../src/lib/geometry.ts';
+import {
+  rawDistance,
+  rawPolylineLength,
+  rawPolygonArea,
+  snapAngleXZ,
+  nearestPointOnSegmentXZ,
+} from '../src/lib/geometry.ts';
 import { formatLength, formatArea, unitPresetScale } from '../src/lib/units.ts';
 import { buildFloorPlanDxf, buildSketchDxf } from '../src/lib/dxf.ts';
 import type { Wall, Opening, SketchLine, SketchCircle } from '../src/types.ts';
@@ -65,5 +71,11 @@ ok('sketch dxf ends with EOF', sdxf.trim().endsWith('EOF'));
 // scaled radius: scaleFactor 2 -> r 0.5 becomes 1.0
 const sdxf2 = buildSketchDxf([], sketchCircles, 2, 'm');
 ok('sketch dxf scaled radius = 1', sdxf2.includes('\n40\n1\n'));
+
+// nearest point on segment (basis for edge snapping)
+const np = nearestPointOnSegmentXZ([2, 0, 1], [0, 0, 0], [4, 0, 0]);
+ok('nearestPointOnSegment foot', Math.abs(np.point[0] - 2) < 1e-9 && Math.abs(np.point[2]) < 1e-9 && Math.abs(np.dist - 1) < 1e-9);
+const np2 = nearestPointOnSegmentXZ([-1, 0, 0], [0, 0, 0], [4, 0, 0]);
+ok('nearestPointOnSegment clamps to endpoint', Math.abs(np2.point[0]) < 1e-9 && Math.abs(np2.dist - 1) < 1e-9);
 
 console.log(`\n${passed} assertions passed.`);

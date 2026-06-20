@@ -1,4 +1,4 @@
-import { snapWallDirectionXZ } from './geometry';
+import { snapWallDirectionXZ, nearestPointOnSegmentXZ } from './geometry';
 import { SNAP_ANGLES } from '../types';
 import type { Vec3, Wall, Room, DrawSettings, SketchLine, SketchCircle } from '../types';
 
@@ -27,8 +27,8 @@ export function snapDrawPoint(raw: Vec3, ctx: SnapContext): Vec3 {
   let p: Vec3 = [raw[0], 0, raw[2]];
 
   if (drawSettings.endpointSnap) {
+    // 1) Corner snap: existing endpoints / room vertices / chain points.
     const candidates: Vec3[] = [];
-    // chain start first so closing the loop is preferred
     pendingWallPoints.forEach((pp) => candidates.push(pp));
     walls.forEach((w) => {
       candidates.push(w.start, w.end);
@@ -44,6 +44,22 @@ export function snapDrawPoint(raw: Vec3, ctx: SnapContext): Vec3 {
       }
     }
     if (best) return [best[0], 0, best[2]];
+
+    // 2) Edge snap: project onto the nearest existing wall / room edge.
+    let edgeBest: Vec3 | null = null;
+    let edgeD = threshold;
+    const tryEdge = (a: Vec3, b: Vec3) => {
+      const r = nearestPointOnSegmentXZ(p, a, b);
+      if (r.dist < edgeD) {
+        edgeD = r.dist;
+        edgeBest = r.point;
+      }
+    };
+    walls.forEach((w) => tryEdge(w.start, w.end));
+    rooms.forEach((r) => {
+      for (let i = 0; i < r.points.length; i++) tryEdge(r.points[i], r.points[(i + 1) % r.points.length]);
+    });
+    if (edgeBest) return edgeBest;
   }
 
   // Rectangle tool: snap the X and Z extents to the grid independently.
@@ -116,6 +132,18 @@ export function snapSketchPoint(raw: Vec3, ctx: SketchSnapContext): Vec3 {
       }
     }
     if (best) return [best[0], 0, best[2]];
+
+    // edge snap onto existing sketch lines
+    let edgeBest: Vec3 | null = null;
+    let edgeD = threshold;
+    for (const l of lines) {
+      const r = nearestPointOnSegmentXZ(p, l.a, l.b);
+      if (r.dist < edgeD) {
+        edgeD = r.dist;
+        edgeBest = r.point;
+      }
+    }
+    if (edgeBest) return edgeBest;
   }
 
   if (pendingSketch.length > 0) {

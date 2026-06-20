@@ -56,7 +56,11 @@ export default function GroundPlane() {
     });
   };
 
-  const active = mode === 'draw' && drawKind !== null && !(drawKind === 'bim' && !!openingPlaceType);
+  const active =
+    mode === 'draw' &&
+    drawKind !== null &&
+    !(drawKind === 'bim' && !!openingPlaceType) &&
+    !(drawKind === 'bim' && drawTool === 'off');
 
   return (
     <mesh

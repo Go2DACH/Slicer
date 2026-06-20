@@ -95,7 +95,17 @@ function roomGeometry(points: Vec3[], holes: Vec3[][]): THREE.BufferGeometry | n
   return geom;
 }
 
-function RoomFill({ room, allRooms, selected }: { room: Room; allRooms: Room[]; selected: boolean }) {
+function RoomFill({
+  room,
+  allRooms,
+  selected,
+  selectable,
+}: {
+  room: Room;
+  allRooms: Room[];
+  selected: boolean;
+  selectable: boolean;
+}) {
   const scaleFactor = useStore((s) => s.scaleFactor);
   const unit = useStore((s) => s.unit);
   const selectRoom = useStore((s) => s.selectRoom);
@@ -112,10 +122,14 @@ function RoomFill({ room, allRooms, selected }: { room: Room; allRooms: Room[]; 
     <group>
       <mesh
         geometry={geom}
-        onClick={(e) => {
-          e.stopPropagation();
-          selectRoom(room.id);
-        }}
+        onClick={
+          selectable
+            ? (e) => {
+                e.stopPropagation();
+                selectRoom(room.id);
+              }
+            : undefined
+        }
       >
         <meshBasicMaterial
           color={selected ? '#ffd54f' : '#4f8cff'}
@@ -149,6 +163,9 @@ export default function BimOverlay() {
   const selectWall = useStore((s) => s.selectWall);
   const addOpening = useStore((s) => s.addOpening);
   const drawTool = useStore((s) => s.drawTool);
+  const drawKind = useStore((s) => s.drawKind);
+  const size = useStore((s) => s.modelInfo?.size);
+  const cursorR = size ? Math.max(Math.max(...size) * 0.012, 1e-3) : 0.1;
 
   const group = useMemo(
     () => buildBimGroup(walls, openings, scaleFactor, { transparent: true }),
@@ -200,13 +217,17 @@ export default function BimOverlay() {
 
   const wallById = (id: string) => walls.find((w) => w.id === id);
 
+  // While actively drawing, BIM meshes must be click-through so taps reach the
+  // ground plane (otherwise tapping near a wall/room selects instead of drawing).
+  const drawingActive = mode === 'draw' && drawKind === 'bim' && drawTool !== 'off' && !openingPlaceType;
+
   return (
     <group>
-      <primitive object={group} onClick={handleClick} />
+      <primitive object={group} onClick={drawingActive ? undefined : handleClick} />
 
       {/* room fills + areas */}
       {rooms.map((r) => (
-        <RoomFill key={r.id} room={r} allRooms={rooms} selected={selectedRoomId === r.id} />
+        <RoomFill key={r.id} room={r} allRooms={rooms} selected={selectedRoomId === r.id} selectable={!drawingActive} />
       ))}
 
       {/* selection outline */}
@@ -279,6 +300,25 @@ export default function BimOverlay() {
             )}
           </div>
         </Html>
+      )}
+
+      {/* snap cursor: shows where the next point lands (already snapped) */}
+      {mode === 'draw' && drawKind === 'bim' && drawTool !== 'off' && !openingPlaceType && hoverPoint && (
+        <group position={[hoverPoint[0], 0.05, hoverPoint[2]]}>
+          <Line
+            points={Array.from({ length: 33 }, (_, i) => {
+              const a = (i / 32) * Math.PI * 2;
+              return new THREE.Vector3(Math.cos(a) * cursorR, 0, Math.sin(a) * cursorR);
+            })}
+            color="#ffd54f"
+            lineWidth={2}
+            depthTest={false}
+          />
+          <mesh>
+            <sphereGeometry args={[cursorR * 0.25, 10, 10]} />
+            <meshBasicMaterial color="#ffd54f" depthTest={false} />
+          </mesh>
+        </group>
       )}
     </group>
   );

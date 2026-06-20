@@ -69,25 +69,33 @@ export default function DrawPanel() {
       <div className="card">
         <div className="field">
           <label>Werkzeug</label>
-          <div className="row">
+          <div className="row" style={{ flexWrap: 'wrap', gap: 4 }}>
             <button
               className={drawTool === 'wall' ? 'active' : ''}
-              onClick={() => { setDrawTool('wall'); setOpeningPlaceType(null); }}
+              onClick={() => { setDrawTool(drawTool === 'wall' ? 'off' : 'wall'); setOpeningPlaceType(null); }}
             >
-              ▟ Wände (Punkte)
+              ▟ Wände
             </button>
             <button
               className={drawTool === 'rect' ? 'active' : ''}
-              onClick={() => { setDrawTool('rect'); setOpeningPlaceType(null); }}
+              onClick={() => { setDrawTool(drawTool === 'rect' ? 'off' : 'rect'); setOpeningPlaceType(null); }}
             >
-              ▭ Rechteck-Raum
+              ▭ Raum
+            </button>
+            <button
+              className={drawTool === 'off' ? 'active' : ''}
+              onClick={() => { setDrawTool('off'); setOpeningPlaceType(null); }}
+            >
+              ▷ Auswählen
             </button>
           </div>
-          {drawTool === 'rect' && (
-            <div className="small muted" style={{ marginTop: 4 }}>
-              Zwei gegenüberliegende Ecken antippen – fertiger Raum in einem Schritt.
-            </div>
-          )}
+          <div className="small muted" style={{ marginTop: 4 }}>
+            {drawTool === 'wall'
+              ? 'Punkte tippen; auf den Startpunkt tippen schließt den Raum. Nahe Ecken/Wände werden gefangen.'
+              : drawTool === 'rect'
+                ? 'Zwei gegenüberliegende Ecken antippen – fertiger Raum in einem Schritt.'
+                : 'Zeichnen aus. Tippe ein Element zum Auswählen; ziehen verschiebt die Ansicht.'}
+          </div>
         </div>
 
         <div className="field" style={{ marginTop: 12 }}>
