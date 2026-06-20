@@ -317,8 +317,9 @@ export const useStore = create<AppState>((set, get) => ({
   setUnit: (u) => set({ unit: u }),
 
   setAlignment: (q, offset) => {
-    const identity = q[0] === 0 && q[1] === 0 && q[2] === 0 && q[3] === 1 && offset[0] === 0 && offset[1] === 0 && offset[2] === 0;
-    set({ alignQuaternion: q, alignOffset: offset, alignApplied: !identity, alignPoints: [] });
+    // Mark as aligned whenever an alignment is applied (even a near-identity one,
+    // e.g. a floor that was already level) so the UI can give feedback.
+    set({ alignQuaternion: q, alignOffset: offset, alignApplied: true, alignPoints: [] });
   },
   transformAnnotations: (fn) => {
     set({

@@ -15,7 +15,7 @@ interface Props {
   onCalibrate: () => void;
 }
 
-export default function Toolbar({ onShare }: Props) {
+export default function Toolbar({ onShare, onCalibrate }: Props) {
   const mode = useStore((s) => s.mode);
   const setMode = useStore((s) => s.setMode);
   const showGrid = useStore((s) => s.showGrid);
@@ -79,7 +79,16 @@ export default function Toolbar({ onShare }: Props) {
 
       <div className="spacer" />
 
-      {!calibrated && modelObject && <span className="badge warn">unkalibriert</span>}
+      {!calibrated && modelObject && (
+        <button
+          className="badge warn"
+          style={{ border: 'none', cursor: 'pointer' }}
+          onClick={onCalibrate}
+          title="Maßstab kalibrieren"
+        >
+          unkalibriert – kalibrieren
+        </button>
+      )}
       {calibrated && <span className="badge ok">kalibriert</span>}
       {readonly && <span className="badge ok">Read-only</span>}
 

@@ -1,6 +1,8 @@
+import { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { useStore } from '../store';
 import { computeFloorAlign, computeWallAlign } from '../lib/align';
+import { planeNormalFromThree } from '../lib/geometry';
 import type { Vec3 } from '../types';
 
 export default function AlignPanel() {
@@ -16,21 +18,52 @@ export default function AlignPanel() {
   const resetAlignment = useStore((s) => s.resetAlignment);
   const triggerResetView = useStore((s) => s.triggerResetView);
 
+  const [feedback, setFeedback] = useState<string | null>(null);
+  const applyingRef = useRef(false);
+
+  const flash = (msg: string) => {
+    setFeedback(msg);
+    window.clearTimeout((flash as unknown as { t?: number }).t);
+    (flash as unknown as { t?: number }).t = window.setTimeout(() => setFeedback(null), 3500);
+  };
+
   const applyFloor = () => {
-    if (alignPoints.length < 3) return;
-    const res = computeFloorAlign(alignPoints, alignQuaternion, alignOffset);
+    if (useStore.getState().alignPoints.length < 3) return;
+    const pts = useStore.getState().alignPoints;
+    const normal = planeNormalFromThree(pts[0], pts[1], pts[2]);
+    const angle = (Math.acos(Math.min(1, Math.abs(normal.dot(new THREE.Vector3(0, 1, 0))))) * 180) / Math.PI;
+    const res = computeFloorAlign(pts, alignQuaternion, alignOffset);
     transformAnnotations(res.delta);
     setAlignment(res.quaternion, res.offset);
     triggerResetView();
+    flash(angle < 1.5 ? '✓ Boden war bereits waagrecht' : `✓ Boden ausgerichtet (${angle.toFixed(0)}° gedreht)`);
   };
 
   const applyWall = () => {
-    if (alignPoints.length < 2) return;
-    const res = computeWallAlign(alignPoints, alignQuaternion, alignOffset);
+    if (useStore.getState().alignPoints.length < 2) return;
+    const pts = useStore.getState().alignPoints;
+    const res = computeWallAlign(pts, alignQuaternion, alignOffset);
     transformAnnotations(res.delta);
     setAlignment(res.quaternion, res.offset);
     triggerResetView();
+    flash('✓ Wand achsparallel gedreht');
   };
+
+  // Auto-apply as soon as enough points are picked (3 floor / 2 wall).
+  useEffect(() => {
+    if (applyingRef.current) return;
+    const need = alignTool === 'floor' ? 3 : 2;
+    if (alignPoints.length >= need) {
+      applyingRef.current = true;
+      if (alignTool === 'floor') applyFloor();
+      else applyWall();
+      // release the guard on the next tick (points get cleared by setAlignment)
+      window.setTimeout(() => {
+        applyingRef.current = false;
+      }, 0);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [alignPoints.length, alignTool]);
 
   const reset = () => {
     // Map annotations back to the un-aligned (raw) frame: raw = R^-1 (world - offset).
@@ -65,24 +98,38 @@ export default function AlignPanel() {
 
         <div className="small muted" style={{ marginTop: 8 }}>
           {alignTool === 'floor'
-            ? `Gesetzte Punkte: ${alignPoints.length}/3 — drei Punkte auf dem Boden klicken.`
-            : `Gesetzte Punkte: ${alignPoints.length}/2 — zwei Punkte entlang einer Wand klicken.`}
+            ? 'Klicke nacheinander drei Punkte auf dem Boden – die Ausrichtung erfolgt automatisch beim dritten Punkt.'
+            : 'Klicke zwei Punkte entlang einer Wand – die Drehung erfolgt automatisch beim zweiten Punkt.'}
         </div>
 
-        <div className="row" style={{ marginTop: 10 }}>
-          {alignTool === 'floor' ? (
-            <button className="active" onClick={applyFloor} disabled={alignPoints.length < 3}>
-              Boden ausrichten
-            </button>
-          ) : (
-            <button className="active" onClick={applyWall} disabled={alignPoints.length < 2}>
-              Wand ausrichten
-            </button>
-          )}
-          <button onClick={clearAlignPoints} disabled={alignPoints.length === 0}>
+        {/* progress dots */}
+        <div className="row" style={{ marginTop: 8, gap: 6 }}>
+          {Array.from({ length: alignTool === 'floor' ? 3 : 2 }).map((_, i) => (
+            <span
+              key={i}
+              style={{
+                width: 12,
+                height: 12,
+                borderRadius: '50%',
+                background: i < alignPoints.length ? 'var(--accent)' : 'var(--bg)',
+                border: '1px solid var(--border)',
+              }}
+            />
+          ))}
+          <span className="small muted">
+            {alignPoints.length}/{alignTool === 'floor' ? 3 : 2} Punkte
+          </span>
+          <div className="spacer" style={{ flex: 1 }} />
+          <button className="icon-btn" onClick={clearAlignPoints} disabled={alignPoints.length === 0}>
             Punkte löschen
           </button>
         </div>
+
+        {feedback && (
+          <div className="badge ok" style={{ marginTop: 10, display: 'block' }}>
+            {feedback}
+          </div>
+        )}
 
         <div className="row" style={{ marginTop: 10 }}>
           {alignApplied && <span className="badge ok">ausgerichtet</span>}

@@ -33,8 +33,15 @@ export default function MeasurePanel({ onCalibrate }: { onCalibrate: () => void 
         </div>
 
         {!calibrated && (
-          <div className="badge warn" style={{ marginTop: 10 }}>
-            Unkalibriert – Maße als Meter angenommen. Bitte kalibrieren.
+          <div className="card" style={{ marginTop: 10, borderColor: '#5a4a2a', background: 'rgba(255,182,72,0.08)' }}>
+            <div className="badge warn">unkalibriert</div>
+            <div className="small" style={{ marginTop: 6 }}>
+              Maße werden als <b>Meter</b> angenommen. Ist dein Scan z. B. in cm oder mm, wirken die Werte 100× / 1000× zu
+              groß. Kalibriere einmalig auf ein bekanntes Maß:
+            </div>
+            <button className="active" style={{ marginTop: 8 }} onClick={() => { setMeasureTool('calibrate'); onCalibrate(); }}>
+              📏 Jetzt kalibrieren
+            </button>
           </div>
         )}
 
