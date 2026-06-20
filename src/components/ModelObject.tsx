@@ -2,6 +2,8 @@ import { useEffect, useMemo, useRef } from 'react';
 import * as THREE from 'three';
 import { useStore } from '../store';
 import { buildBVH } from '../lib/bvh';
+import { snapDrawPoint } from '../lib/drawSnap';
+import type { Vec3 } from '../types';
 
 interface Props {
   onPick: (point: THREE.Vector3, event: { stopPropagation: () => void }) => void;
@@ -20,7 +22,25 @@ export default function ModelObject({ onPick, onHover }: Props) {
   const mode = useStore((s) => s.mode);
   const drawSettings = useStore((s) => s.drawSettings);
   const scaleFactor = useStore((s) => s.scaleFactor);
+  const openingPlaceType = useStore((s) => s.openingPlaceType);
   const groupRef = useRef<THREE.Group>(null);
+
+  // "Fläche fangen": project a surface hit onto the floor plane (Y=0) and draw there.
+  const surfaceDrawActive = mode === 'draw' && drawSettings.surfaceSnap && !openingPlaceType;
+  const doSurfaceDraw = (point: THREE.Vector3, commit: boolean) => {
+    const size = useStore.getState().modelInfo?.size;
+    const maxDim = size ? Math.max(...size) : 10;
+    const st = useStore.getState();
+    const snapped = snapDrawPoint([point.x, 0, point.z] as Vec3, {
+      walls: st.walls,
+      rooms: st.rooms,
+      pendingWallPoints: st.pendingWallPoints,
+      drawSettings: st.drawSettings,
+      maxDim,
+    });
+    if (commit) st.addDrawPoint(snapped);
+    else st.setHoverPoint(snapped);
+  };
 
   // Build BVH whenever the model changes.
   useEffect(() => {
@@ -68,10 +88,17 @@ export default function ModelObject({ onPick, onHover }: Props) {
           if (e.delta !== undefined && e.delta > 6) return;
           if (mode === 'measure' || mode === 'align') {
             onPick(e.point.clone(), e);
+          } else if (surfaceDrawActive) {
+            e.stopPropagation();
+            doSurfaceDraw(e.point, true);
           }
         }}
-        onPointerMove={(e: { point: THREE.Vector3 }) => {
+        onPointerMove={(e: { point: THREE.Vector3; stopPropagation: () => void }) => {
           if (mode === 'measure' || mode === 'align') onHover(e.point.clone());
+          else if (surfaceDrawActive) {
+            e.stopPropagation();
+            doSurfaceDraw(e.point, false);
+          }
         }}
         onPointerOut={() => onHover(null)}
       />

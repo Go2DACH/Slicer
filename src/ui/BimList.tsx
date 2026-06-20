@@ -1,10 +1,51 @@
 import { useStore } from '../store';
-import { rawDistance } from '../lib/geometry';
-import { formatLength } from '../lib/units';
+import { rawDistance, rawPolygonArea } from '../lib/geometry';
+import { formatLength, formatArea } from '../lib/units';
+
+function RoomsSummary() {
+  const rooms = useStore((s) => s.rooms);
+  const scaleFactor = useStore((s) => s.scaleFactor);
+  const unit = useStore((s) => s.unit);
+  const selectedRoomId = useStore((s) => s.selectedRoomId);
+  const selectRoom = useStore((s) => s.selectRoom);
+  const removeRoom = useStore((s) => s.removeRoom);
+  const renameRoom = useStore((s) => s.renameRoom);
+
+  if (rooms.length === 0) return null;
+  const rawTotal = rooms.reduce((acc, r) => acc + rawPolygonArea(r.points), 0);
+
+  return (
+    <div style={{ marginBottom: 12 }}>
+      <h3>Räume ({rooms.length})</h3>
+      {rooms.map((r) => (
+        <div key={r.id} className={`list-item${selectedRoomId === r.id ? ' selected' : ''}`} onClick={() => selectRoom(r.id)}>
+          <div className="meta">
+            <input
+              className="name"
+              style={{ background: 'transparent', border: 'none', padding: 0 }}
+              value={r.name}
+              onChange={(e) => renameRoom(r.id, e.target.value)}
+              onClick={(e) => e.stopPropagation()}
+            />
+            <div className="sub mono">{formatArea(rawPolygonArea(r.points), scaleFactor, unit)}</div>
+          </div>
+          <button className="icon-btn danger" onClick={(e) => { e.stopPropagation(); removeRoom(r.id); }}>
+            ✕
+          </button>
+        </div>
+      ))}
+      <div className="card" style={{ marginTop: 6, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <span className="muted">Gesamtfläche</span>
+        <span className="mono" style={{ fontWeight: 700 }}>{formatArea(rawTotal, scaleFactor, unit)}</span>
+      </div>
+    </div>
+  );
+}
 
 export default function BimList() {
   const walls = useStore((s) => s.walls);
   const openings = useStore((s) => s.openings);
+  const rooms = useStore((s) => s.rooms);
   const scaleFactor = useStore((s) => s.scaleFactor);
   const unit = useStore((s) => s.unit);
   const selectedWallId = useStore((s) => s.selectedWallId);
@@ -17,7 +58,7 @@ export default function BimList() {
   const updateWall = useStore((s) => s.updateWall);
   const updateOpening = useStore((s) => s.updateOpening);
 
-  if (walls.length === 0 && openings.length === 0) {
+  if (walls.length === 0 && openings.length === 0 && rooms.length === 0) {
     return (
       <div>
         <h3>Grundriss-Elemente</h3>
@@ -28,6 +69,7 @@ export default function BimList() {
 
   return (
     <div>
+      <RoomsSummary />
       <h3>
         Grundriss-Elemente ({walls.length} Wände, {openings.length} Öffnungen)
       </h3>
@@ -133,6 +175,15 @@ export default function BimList() {
                         />
                       </div>
                     )}
+                    <button
+                      style={{ marginTop: 8 }}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        updateOpening(o.id, { flip: !o.flip });
+                      }}
+                    >
+                      ⇄ Öffnungsrichtung umkehren
+                    </button>
                   </div>
                 )}
               </div>

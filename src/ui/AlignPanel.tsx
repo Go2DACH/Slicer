@@ -17,6 +17,7 @@ export default function AlignPanel() {
   const transformAnnotations = useStore((s) => s.transformAnnotations);
   const resetAlignment = useStore((s) => s.resetAlignment);
   const triggerResetView = useStore((s) => s.triggerResetView);
+  const setCameraView = useStore((s) => s.setCameraView);
 
   const [feedback, setFeedback] = useState<string | null>(null);
   const applyingRef = useRef(false);
@@ -35,8 +36,10 @@ export default function AlignPanel() {
     const res = computeFloorAlign(pts, alignQuaternion, alignOffset);
     transformAnnotations(res.delta);
     setAlignment(res.quaternion, res.offset);
+    // After aligning the floor, switch to the top-down view automatically.
+    setCameraView('top');
     triggerResetView();
-    flash(angle < 1.5 ? '✓ Boden war bereits waagrecht' : `✓ Boden ausgerichtet (${angle.toFixed(0)}° gedreht)`);
+    flash(angle < 1.5 ? '✓ Boden waagrecht · Draufsicht' : `✓ Boden ausgerichtet (${angle.toFixed(0)}°) · Draufsicht`);
   };
 
   const applyWall = () => {

@@ -8,6 +8,8 @@ import type {
   AlignTool,
   Wall,
   Opening,
+  Room,
+  CameraView,
   ModelInfo,
   LoadError,
   DrawSettings,
@@ -22,6 +24,7 @@ interface HistorySnapshot {
   measurements: Measurement[];
   walls: Wall[];
   openings: Opening[];
+  rooms: Room[];
 }
 
 interface AppState {
@@ -76,13 +79,19 @@ interface AppState {
   // ---- Drawing / BIM ----
   walls: Wall[];
   openings: Opening[];
+  rooms: Room[];
+  /** Full point chain of the wall being drawn (closes into a room). */
   pendingWallPoints: Vec3[];
   selectedWallId: string | null;
   selectedOpeningId: string | null;
+  selectedRoomId: string | null;
   drawSettings: DrawSettings;
   /** When placing an opening: which type to place next. */
   openingPlaceType: 'door' | 'window' | null;
-  topDown: boolean;
+  /** Reverse opening direction for the next placed opening. */
+  openingFlip: boolean;
+  /** Camera view preset (free orbit / top / bottom). */
+  cameraView: CameraView;
 
   // ---- History ----
   history: HistorySnapshot[];
@@ -125,8 +134,7 @@ interface AppState {
   resetAlignment: () => void;
 
   // BIM
-  addWallSegment: (start: Vec3, end: Vec3) => void;
-  setPendingWallPoints: (pts: Vec3[]) => void;
+  addDrawPoint: (p: Vec3) => void;
   finishWallChain: () => void;
   clearBim: () => void;
   removeWall: (id: string) => void;
@@ -137,9 +145,13 @@ interface AppState {
   removeOpening: (id: string) => void;
   updateOpening: (id: string, patch: Partial<Opening>) => void;
   selectOpening: (id: string | null) => void;
+  removeRoom: (id: string) => void;
+  renameRoom: (id: string, name: string) => void;
+  selectRoom: (id: string | null) => void;
   setOpeningPlaceType: (t: 'door' | 'window' | null) => void;
+  setOpeningFlip: (v: boolean) => void;
   setDrawSettings: (patch: Partial<DrawSettings>) => void;
-  setTopDown: (v: boolean) => void;
+  setCameraView: (v: CameraView) => void;
 
   undo: () => void;
   pushHistory: () => void;
@@ -159,6 +171,7 @@ const defaultDrawSettings: DrawSettings = {
   sectionEnabled: false,
   angleSnap: true,
   endpointSnap: true,
+  surfaceSnap: false,
 };
 
 export const useStore = create<AppState>((set, get) => ({
@@ -196,12 +209,15 @@ export const useStore = create<AppState>((set, get) => ({
 
   walls: [],
   openings: [],
+  rooms: [],
   pendingWallPoints: [],
   selectedWallId: null,
   selectedOpeningId: null,
+  selectedRoomId: null,
   drawSettings: defaultDrawSettings,
   openingPlaceType: null,
-  topDown: false,
+  openingFlip: false,
+  cameraView: 'free',
 
   history: [],
 
@@ -218,11 +234,13 @@ export const useStore = create<AppState>((set, get) => ({
       pendingPoints: [],
       walls: [],
       openings: [],
+      rooms: [],
       pendingWallPoints: [],
       alignQuaternion: [0, 0, 0, 1],
       alignOffset: [0, 0, 0],
       alignApplied: false,
       alignPoints: [],
+      cameraView: 'free',
       history: [],
     });
   },
@@ -244,7 +262,8 @@ export const useStore = create<AppState>((set, get) => ({
       alignPoints: [],
       pendingWallPoints: [],
       openingPlaceType: null,
-      topDown: m === 'draw' ? get().topDown : false,
+      // Entering draw mode defaults to the top view; leaving it returns to free.
+      cameraView: m === 'draw' ? 'top' : get().cameraView === 'top' && get().mode === 'draw' ? 'free' : get().cameraView,
       // Walkthrough only makes sense in view/measure modes.
       walkMode: m === 'view' || m === 'measure' ? get().walkMode : false,
     }),
@@ -330,6 +349,7 @@ export const useStore = create<AppState>((set, get) => ({
     set({
       measurements: get().measurements.map((m) => ({ ...m, points: m.points.map(fn) })),
       walls: get().walls.map((w) => ({ ...w, start: fn(w.start), end: fn(w.end) })),
+      rooms: get().rooms.map((r) => ({ ...r, points: r.points.map(fn) })),
       pendingPoints: get().pendingPoints.map(fn),
       pendingWallPoints: get().pendingWallPoints.map(fn),
     });
@@ -341,24 +361,53 @@ export const useStore = create<AppState>((set, get) => ({
   clearAlignPoints: () => set({ alignPoints: [] }),
   resetAlignment: () => set({ alignQuaternion: [0, 0, 0, 1], alignOffset: [0, 0, 0], alignApplied: false, alignPoints: [] }),
 
-  addWallSegment: (start, end) => {
-    get().pushHistory();
-    const { drawSettings } = get();
-    const wall: Wall = {
+  addDrawPoint: (p) => {
+    const chain = get().pendingWallPoints;
+    const ds = get().drawSettings;
+    const makeWall = (start: Vec3, end: Vec3): Wall => ({
       id: nextId('wall'),
       name: `Wand ${get().walls.length + 1}`,
       start,
       end,
-      thickness: drawSettings.wallThickness,
-      height: drawSettings.wallHeight,
-    };
-    set({ walls: [...get().walls, wall] });
+      thickness: ds.wallThickness,
+      height: ds.wallHeight,
+    });
+    if (chain.length === 0) {
+      set({ pendingWallPoints: [p] });
+      return;
+    }
+    const last = chain[chain.length - 1];
+    if (Math.hypot(last[0] - p[0], last[2] - p[2]) < 1e-7) return; // ignore duplicate click
+    const first = chain[0];
+    const closes = chain.length >= 3 && Math.hypot(first[0] - p[0], first[2] - p[2]) < 1e-5;
+    get().pushHistory();
+    if (closes) {
+      const room: Room = {
+        id: nextId('room'),
+        name: `Raum ${get().rooms.length + 1}`,
+        points: chain.map((c) => [...c] as Vec3),
+      };
+      set({
+        walls: [...get().walls, makeWall(last, first)],
+        rooms: [...get().rooms, room],
+        pendingWallPoints: [],
+      });
+    } else {
+      set({ walls: [...get().walls, makeWall(last, p)], pendingWallPoints: [...chain, p] });
+    }
   },
-  setPendingWallPoints: (pts) => set({ pendingWallPoints: pts }),
   finishWallChain: () => set({ pendingWallPoints: [] }),
   clearBim: () => {
     get().pushHistory();
-    set({ walls: [], openings: [], pendingWallPoints: [], selectedWallId: null, selectedOpeningId: null });
+    set({
+      walls: [],
+      openings: [],
+      rooms: [],
+      pendingWallPoints: [],
+      selectedWallId: null,
+      selectedOpeningId: null,
+      selectedRoomId: null,
+    });
   },
   removeWall: (id) => {
     get().pushHistory();
@@ -370,12 +419,44 @@ export const useStore = create<AppState>((set, get) => ({
   },
   renameWall: (id, name) => set({ walls: get().walls.map((w) => (w.id === id ? { ...w, name } : w)) }),
   updateWall: (id, patch) => set({ walls: get().walls.map((w) => (w.id === id ? { ...w, ...patch } : w)) }),
-  selectWall: (id) => set({ selectedWallId: id, selectedOpeningId: null }),
+  selectWall: (id) => set({ selectedWallId: id, selectedOpeningId: null, selectedRoomId: null }),
 
   addOpening: (wallId, t) => {
     get().pushHistory();
-    const { drawSettings, openingPlaceType } = get();
+    const { drawSettings, openingPlaceType, openingFlip, walls, rooms } = get();
     const type = openingPlaceType ?? 'door';
+    const wall = walls.find((w) => w.id === wallId);
+
+    // Default swing toward the room interior if the wall belongs to a room.
+    let base = false;
+    if (wall) {
+      const ux = wall.end[0] - wall.start[0];
+      const uz = wall.end[2] - wall.start[2];
+      const len = Math.hypot(ux, uz) || 1;
+      const nx = -uz / len; // +n side normal (XZ)
+      const nz = ux / len;
+      const midx = wall.start[0] + ux * t;
+      const midz = wall.start[2] + uz * t;
+      const room = rooms.find(
+        (r) =>
+          r.points.some((pt) => Math.hypot(pt[0] - wall.start[0], pt[2] - wall.start[2]) < 1e-4) &&
+          r.points.some((pt) => Math.hypot(pt[0] - wall.end[0], pt[2] - wall.end[2]) < 1e-4),
+      );
+      if (room) {
+        let cx = 0;
+        let cz = 0;
+        room.points.forEach((pt) => {
+          cx += pt[0];
+          cz += pt[2];
+        });
+        cx /= room.points.length;
+        cz /= room.points.length;
+        // if the centroid lies on the -n side, flip so the swing faces the room
+        base = (cx - midx) * nx + (cz - midz) * nz < 0;
+      }
+    }
+    const flip = openingFlip ? !base : base;
+
     const opening: Opening = {
       id: nextId('open'),
       name: `${type === 'door' ? 'Tür' : 'Fenster'} ${get().openings.length + 1}`,
@@ -385,6 +466,8 @@ export const useStore = create<AppState>((set, get) => ({
       width: type === 'door' ? drawSettings.doorWidth : drawSettings.windowWidth,
       height: type === 'door' ? drawSettings.doorHeight : drawSettings.windowHeight,
       sill: type === 'door' ? 0 : drawSettings.windowSill,
+      flip,
+      hingeRight: false,
     };
     set({ openings: [...get().openings, opening] });
   },
@@ -396,17 +479,28 @@ export const useStore = create<AppState>((set, get) => ({
     });
   },
   updateOpening: (id, patch) => set({ openings: get().openings.map((o) => (o.id === id ? { ...o, ...patch } : o)) }),
-  selectOpening: (id) => set({ selectedOpeningId: id, selectedWallId: null }),
+  selectOpening: (id) => set({ selectedOpeningId: id, selectedWallId: null, selectedRoomId: null }),
+  removeRoom: (id) => {
+    get().pushHistory();
+    set({
+      rooms: get().rooms.filter((r) => r.id !== id),
+      selectedRoomId: get().selectedRoomId === id ? null : get().selectedRoomId,
+    });
+  },
+  renameRoom: (id, name) => set({ rooms: get().rooms.map((r) => (r.id === id ? { ...r, name } : r)) }),
+  selectRoom: (id) => set({ selectedRoomId: id, selectedWallId: null, selectedOpeningId: null }),
   setOpeningPlaceType: (t) => set({ openingPlaceType: t }),
+  setOpeningFlip: (v) => set({ openingFlip: v }),
   setDrawSettings: (patch) => set({ drawSettings: { ...get().drawSettings, ...patch } }),
-  setTopDown: (v) => set({ topDown: v }),
+  setCameraView: (v) => set({ cameraView: v }),
 
   pushHistory: () => {
-    const { measurements, walls, openings, history } = get();
+    const { measurements, walls, openings, rooms, history } = get();
     const snap: HistorySnapshot = {
       measurements: measurements.map((m) => ({ ...m, points: m.points.map((p) => [...p] as Vec3) })),
       walls: walls.map((w) => ({ ...w })),
       openings: openings.map((o) => ({ ...o })),
+      rooms: rooms.map((r) => ({ ...r, points: r.points.map((p) => [...p] as Vec3) })),
     };
     set({ history: [...history.slice(-49), snap] });
   },
@@ -418,6 +512,7 @@ export const useStore = create<AppState>((set, get) => ({
       measurements: last.measurements,
       walls: last.walls,
       openings: last.openings,
+      rooms: last.rooms,
       history: history.slice(0, -1),
       pendingPoints: [],
       pendingWallPoints: [],
@@ -425,8 +520,9 @@ export const useStore = create<AppState>((set, get) => ({
   },
 
   deleteSelection: () => {
-    const { selectedMeasurementId, selectedWallId, selectedOpeningId } = get();
+    const { selectedMeasurementId, selectedWallId, selectedOpeningId, selectedRoomId } = get();
     if (selectedOpeningId) return get().removeOpening(selectedOpeningId);
+    if (selectedRoomId) return get().removeRoom(selectedRoomId);
     if (selectedWallId) return get().removeWall(selectedWallId);
     if (selectedMeasurementId) return get().removeMeasurement(selectedMeasurementId);
   },

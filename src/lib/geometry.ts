@@ -93,3 +93,40 @@ export function snapAngleXZ(origin: Vec3, target: Vec3, stepDeg: number): Vec3 {
   const snapped = Math.round(angle / step) * step;
   return [origin[0] + Math.cos(snapped) * len, target[1], origin[2] + Math.sin(snapped) * len];
 }
+
+/**
+ * Snap a new wall direction so its angle relative to the previous segment (or
+ * the world X axis if none) matches one of the allowed angles (and their
+ * mirrors). Keeps the segment length, returns the snapped endpoint.
+ */
+export function snapWallDirectionXZ(
+  origin: Vec3,
+  target: Vec3,
+  prevDir: { x: number; z: number } | null,
+  allowedDeg: readonly number[],
+): Vec3 {
+  const dx = target[0] - origin[0];
+  const dz = target[2] - origin[2];
+  const len = Math.hypot(dx, dz);
+  if (len < 1e-9) return target;
+  const candAbs = (Math.atan2(dz, dx) * 180) / Math.PI;
+  const refAbs = prevDir ? (Math.atan2(prevDir.z, prevDir.x) * 180) / Math.PI : 0;
+  let rel = candAbs - refAbs;
+  rel = ((((rel + 180) % 360) + 360) % 360) - 180; // normalize to (-180, 180]
+  const candidates = new Set<number>([0, 180, -180]);
+  for (const a of allowedDeg) {
+    candidates.add(a);
+    candidates.add(-a);
+  }
+  let best = rel;
+  let bestD = Infinity;
+  for (const a of candidates) {
+    const d = Math.abs(a - rel);
+    if (d < bestD) {
+      bestD = d;
+      best = a;
+    }
+  }
+  const snapped = ((refAbs + best) * Math.PI) / 180;
+  return [origin[0] + Math.cos(snapped) * len, target[1], origin[2] + Math.sin(snapped) * len];
+}

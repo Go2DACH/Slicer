@@ -46,6 +46,18 @@ export interface Opening {
   height: number;
   /** Sill height (bottom above floor) in real units. 0 for doors. */
   sill: number;
+  /** Opening/swing direction: false = default (inward), true = reversed. */
+  flip: boolean;
+  /** Hinge on the +along side (true) or -along side (false). Doors only. */
+  hingeRight: boolean;
+}
+
+/** A closed room polygon derived from a closed wall chain. */
+export interface Room {
+  id: string;
+  name: string;
+  /** Polygon points on the floor plane (world coords, Y=0). */
+  points: Vec3[];
 }
 
 export interface ModelInfo {
@@ -62,6 +74,9 @@ export interface LoadError {
   detail?: string;
 }
 
+/** Camera view preset. */
+export type CameraView = 'free' | 'top' | 'bottom';
+
 export interface DrawSettings {
   wallThickness: number;
   wallHeight: number;
@@ -73,8 +88,13 @@ export interface DrawSettings {
   /** Section cut height (real units) for the horizontal clip plane. */
   sectionHeight: number;
   sectionEnabled: boolean;
-  /** Snap to 90/45 degree angles while drawing. */
+  /** Snap new wall directions to the allowed angle raster. */
   angleSnap: boolean;
-  /** Snap to existing endpoints. */
+  /** Snap to existing endpoints/points ("Punkt fangen"). */
   endpointSnap: boolean;
+  /** Snap draw points onto the scan surface ("Fläche fangen"). */
+  surfaceSnap: boolean;
 }
+
+/** Allowed snap angles (degrees) for new wall directions. */
+export const SNAP_ANGLES = [30, 45, 70, 90, 120, 180] as const;
