@@ -7,7 +7,7 @@ import { rawDistance, rawPolygonArea, midpoint } from '../lib/geometry';
 import { formatLength, formatArea } from '../lib/units';
 import type { Vec3, Wall, Opening, Room } from '../types';
 
-const FLOOR_Y = 0.02; // small raise so symbols sit above the floor plane
+const FLOOR_Y = 0.04; // small raise so symbols sit above the floor plane
 
 /** Door swing symbol (leaf + quarter-circle arc) in world coords. */
 function doorSymbol(wall: Wall, o: Opening, s: number): { leaf: THREE.Vector3[]; arc: THREE.Vector3[] } {
@@ -218,15 +218,15 @@ export default function BimOverlay() {
           const { leaf, arc } = doorSymbol(w, o, scaleFactor);
           return (
             <group key={o.id}>
-              <Line points={leaf} color="#ff9f43" lineWidth={2} depthTest={false} />
-              <Line points={arc} color="#ff9f43" lineWidth={1.5} depthTest={false} />
+              <Line points={leaf} color="#ffb454" lineWidth={3} depthTest={false} />
+              <Line points={arc} color="#ffb454" lineWidth={2.5} depthTest={false} />
             </group>
           );
         }
         return (
           <group key={o.id}>
             {windowSymbol(w, o, scaleFactor).map((seg, i) => (
-              <Line key={i} points={seg} color="#54e0c7" lineWidth={i === 3 ? 1.5 : 2} depthTest={false} />
+              <Line key={i} points={seg} color="#54e0c7" lineWidth={i === 3 ? 2.5 : 3} depthTest={false} />
             ))}
           </group>
         );

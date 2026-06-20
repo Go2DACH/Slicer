@@ -23,6 +23,16 @@ function PointsRaycasterConfig() {
   return null;
 }
 
+/** Exposes the camera/size for automated tests (harmless debug handle). */
+function DebugExpose() {
+  const camera = useThree((s) => s.camera);
+  const sizeR = useThree((s) => s.size);
+  useEffect(() => {
+    (window as unknown as { __r3f?: unknown }).__r3f = { camera, size: sizeR };
+  });
+  return null;
+}
+
 function Lights() {
   return (
     <>
@@ -74,6 +84,7 @@ export default function Scene() {
     >
       <Lights />
       <PointsRaycasterConfig />
+      <DebugExpose />
       <CameraController />
 
       <ModelObject onPick={handlePick} onHover={handleHover} />

@@ -5,6 +5,9 @@ import type { Wall, Opening } from '../types';
  * Build a THREE.Group of the drawn BIM model (walls + openings) in RAW model
  * coordinates so it overlays the scan exactly. Real-unit dimensions (thickness,
  * height, opening sizes) are divided by scaleFactor to convert to raw units.
+ *
+ * Openings cut real gaps into the wall: doors leave a full-height void, windows
+ * leave a void between sill and header (with sill/header pieces kept solid).
  */
 export function buildBimGroup(
   walls: Wall[],
@@ -15,27 +18,14 @@ export function buildBimGroup(
   const group = new THREE.Group();
   group.name = 'bim';
   const s = scaleFactor || 1;
+  const transparent = opts.transparent ?? true;
 
   const wallMat = new THREE.MeshStandardMaterial({
-    color: 0x4f8cff,
-    roughness: 0.7,
+    color: 0x6f9bff,
+    roughness: 0.75,
     metalness: 0.0,
-    transparent: opts.transparent ?? true,
-    opacity: opts.transparent === false ? 1 : 0.55,
-    side: THREE.DoubleSide,
-  });
-  const doorMat = new THREE.MeshStandardMaterial({
-    color: 0xff9f43,
-    roughness: 0.6,
-    transparent: true,
-    opacity: 0.75,
-    side: THREE.DoubleSide,
-  });
-  const windowMat = new THREE.MeshStandardMaterial({
-    color: 0x54e0c7,
-    roughness: 0.4,
-    transparent: true,
-    opacity: 0.6,
+    transparent,
+    opacity: transparent ? 0.55 : 1,
     side: THREE.DoubleSide,
   });
 
@@ -52,36 +42,46 @@ export function buildBimGroup(
     const uz = dz / rawLen;
     const thicknessRaw = wall.thickness / s;
     const heightRaw = wall.height / s;
+    const rotY = Math.atan2(-uz, ux);
 
-    const geom = new THREE.BoxGeometry(rawLen, heightRaw, thicknessRaw);
-    const mesh = new THREE.Mesh(geom, wallMat);
-    mesh.name = wall.name;
-    mesh.userData.wallId = wall.id;
-    mesh.position.set((sx + ex) / 2, heightRaw / 2, (sz + ez) / 2);
-    mesh.rotation.y = Math.atan2(-uz, ux);
-    group.add(mesh);
+    // Add a box piece spanning param range [p0, p1] of the wall, between
+    // yBottom..yTop (raw units).
+    const addPiece = (p0: number, p1: number, yBottom: number, yTop: number) => {
+      const segLen = (p1 - p0) * rawLen;
+      const h = yTop - yBottom;
+      if (segLen <= 1e-5 || h <= 1e-5) return;
+      const geom = new THREE.BoxGeometry(segLen, h, thicknessRaw);
+      const mesh = new THREE.Mesh(geom, wallMat);
+      mesh.name = wall.name;
+      mesh.userData.wallId = wall.id;
+      const mid = (p0 + p1) / 2;
+      mesh.position.set(sx + dx * mid, (yBottom + yTop) / 2, sz + dz * mid);
+      mesh.rotation.y = rotY;
+      group.add(mesh);
+    };
 
-    // openings as marker volumes
-    for (const o of openings.filter((op) => op.wallId === wall.id)) {
-      const widthRaw = o.width / s;
-      const oHeightRaw = o.height / s;
-      const sillRaw = o.sill / s;
-      const og = new THREE.BoxGeometry(widthRaw, oHeightRaw, thicknessRaw * 1.1);
-      const om = new THREE.Mesh(og, o.type === 'door' ? doorMat : windowMat);
-      om.name = o.name;
-      om.userData.openingId = o.id;
-      const along = (o.t - 0.5) * rawLen;
-      // local position then transform by wall orientation
-      const localX = along;
-      const localY = sillRaw + oHeightRaw / 2;
-      const cos = ux;
-      const sin = -uz; // matches rotation.y above
-      const wx = (sx + ex) / 2 + localX * cos;
-      const wz = (sz + ez) / 2 - localX * sin;
-      om.position.set(wx, localY, wz);
-      om.rotation.y = Math.atan2(-uz, ux);
-      group.add(om);
+    const ops = openings
+      .filter((op) => op.wallId === wall.id)
+      .map((o) => {
+        const halfParam = o.width / s / 2 / rawLen;
+        return { o, p0: Math.max(0, o.t - halfParam), p1: Math.min(1, o.t + halfParam) };
+      })
+      .sort((a, b) => a.p0 - b.p0);
+
+    // solid wall pieces between openings
+    let cursor = 0;
+    for (const { o, p0, p1 } of ops) {
+      addPiece(cursor, p0, 0, heightRaw);
+      if (o.type === 'window') {
+        const sillRaw = o.sill / s;
+        const topRaw = Math.min(heightRaw, sillRaw + o.height / s);
+        addPiece(p0, p1, 0, sillRaw); // sill (below window)
+        addPiece(p0, p1, topRaw, heightRaw); // header (above window)
+      }
+      // door: full-height gap (nothing)
+      cursor = Math.max(cursor, p1);
     }
+    addPiece(cursor, 1, 0, heightRaw);
   }
 
   return group;

@@ -9,6 +9,8 @@ interface SnapContext {
   drawSettings: DrawSettings;
   /** Max model dimension (raw units) used to scale snap thresholds. */
   maxDim: number;
+  /** Meters per one raw unit (scaleFactor × meters-per-display-unit). */
+  metersPerRaw: number;
 }
 
 /**
@@ -18,7 +20,7 @@ interface SnapContext {
  *  2. Angle snap to the allowed raster relative to the previous segment.
  */
 export function snapDrawPoint(raw: Vec3, ctx: SnapContext): Vec3 {
-  const { walls, rooms, pendingWallPoints, drawSettings, maxDim } = ctx;
+  const { walls, rooms, pendingWallPoints, drawSettings, maxDim, metersPerRaw } = ctx;
   const threshold = Math.max(maxDim * 0.02, 1e-4);
   let p: Vec3 = [raw[0], 0, raw[2]];
 
@@ -42,14 +44,27 @@ export function snapDrawPoint(raw: Vec3, ctx: SnapContext): Vec3 {
     if (best) return [best[0], 0, best[2]];
   }
 
-  if (drawSettings.angleSnap && pendingWallPoints.length > 0) {
+  if (pendingWallPoints.length > 0) {
     const origin = pendingWallPoints[pendingWallPoints.length - 1];
-    let prevDir: { x: number; z: number } | null = null;
-    if (pendingWallPoints.length >= 2) {
-      const a = pendingWallPoints[pendingWallPoints.length - 2];
-      prevDir = { x: origin[0] - a[0], z: origin[2] - a[2] };
+    if (drawSettings.angleSnap) {
+      let prevDir: { x: number; z: number } | null = null;
+      if (pendingWallPoints.length >= 2) {
+        const a = pendingWallPoints[pendingWallPoints.length - 2];
+        prevDir = { x: origin[0] - a[0], z: origin[2] - a[2] };
+      }
+      p = snapWallDirectionXZ(origin, p, prevDir, SNAP_ANGLES);
     }
-    p = snapWallDirectionXZ(origin, p, prevDir, SNAP_ANGLES);
+    // Length grid snap (e.g. round the segment length to 10 cm steps).
+    if (drawSettings.gridSnap && metersPerRaw > 0 && drawSettings.gridStepM > 0) {
+      const dx = p[0] - origin[0];
+      const dz = p[2] - origin[2];
+      const rawLen = Math.hypot(dx, dz);
+      if (rawLen > 1e-9) {
+        const stepRaw = drawSettings.gridStepM / metersPerRaw;
+        const snappedLen = Math.max(stepRaw, Math.round(rawLen / stepRaw) * stepRaw);
+        p = [origin[0] + (dx / rawLen) * snappedLen, 0, origin[2] + (dz / rawLen) * snappedLen];
+      }
+    }
   }
   return p;
 }

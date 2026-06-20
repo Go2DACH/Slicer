@@ -172,6 +172,8 @@ const defaultDrawSettings: DrawSettings = {
   angleSnap: true,
   endpointSnap: true,
   surfaceSnap: false,
+  gridSnap: true,
+  gridStepM: 0.1,
 };
 
 export const useStore = create<AppState>((set, get) => ({
