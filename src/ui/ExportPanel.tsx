@@ -16,7 +16,7 @@ export default function ExportPanel() {
   const hasBim = walls.length > 0;
 
   const exportDxf = () => {
-    const dxf = buildFloorPlanDxf(walls, openings, scaleFactor, { includeDims: true });
+    const dxf = buildFloorPlanDxf(walls, openings, scaleFactor, { includeDims: true, unit });
     downloadText(dxf, `${baseName}.dxf`, 'application/dxf');
   };
 

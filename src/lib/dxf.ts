@@ -56,7 +56,7 @@ class DxfBuilder {
     if (rotationDeg) this.push(50, rotationDeg);
   }
 
-  toString(layers: { name: string; color: number }[]): string {
+  toString(layers: { name: string; color: number }[], insunits: number): string {
     const head: string[] = [];
     const out = (code: number, value: string | number) => {
       head.push(String(code));
@@ -67,7 +67,7 @@ class DxfBuilder {
     out(9, '$ACADVER');
     out(1, 'AC1009');
     out(9, '$INSUNITS');
-    out(70, 6); // meters
+    out(70, insunits);
     out(0, 'ENDSEC');
 
     out(0, 'SECTION');
@@ -102,12 +102,17 @@ const LAYERS = [
 /** Map world (x, z) → DXF (x, y) in real units. */
 const mapPoint = (x: number, z: number, s: number): P2 => [x * s, -z * s];
 
+/** DXF $INSUNITS code for a unit label. */
+const INSUNITS: Record<string, number> = { m: 6, cm: 5, mm: 4, ft: 2, in: 1 };
+
 export function buildFloorPlanDxf(
   walls: Wall[],
   openings: Opening[],
   scaleFactor: number,
-  options: { includeDims: boolean } = { includeDims: true },
+  options: { includeDims?: boolean; unit?: string } = {},
 ): string {
+  const includeDims = options.includeDims ?? true;
+  const unit = options.unit ?? 'm';
   const dxf = new DxfBuilder();
   const s = scaleFactor;
 
@@ -136,11 +141,13 @@ export function buildFloorPlanDxf(
     // centerline
     dxf.line('WALLS_CENTER', mapPoint(sx, sz, s), mapPoint(ex, ez, s));
 
-    if (options.includeDims) {
-      const realLen = len * s;
+    const realLen = len * s;
+    // text height proportional to drawing scale so it is legible in any unit
+    const textHeight = Math.max(realLen * 0.04, 1e-6);
+    if (includeDims) {
       const mid = mapPoint((sx + ex) / 2, (sz + ez) / 2, s);
       const rot = (Math.atan2(-pz, ux) * 180) / Math.PI;
-      dxf.text('DIMS', [mid[0], mid[1]], 0.15 * Math.max(s, 0.001) || 0.15, `${realLen.toFixed(2)} m`, rot);
+      dxf.text('DIMS', [mid[0], mid[1]], textHeight, `${realLen.toFixed(2)} ${unit}`, rot);
     }
 
     // openings on this wall
@@ -154,9 +161,9 @@ export function buildFloorPlanDxf(
       const od = mapPoint(cxRaw - ux * halfWRaw - px * half, czRaw - uz * halfWRaw - pz * half, s);
       dxf.polyline('OPENINGS', [oa, ob, oc, od], true);
       const center = mapPoint(cxRaw, czRaw, s);
-      dxf.text('OPENINGS', [center[0], center[1]], 0.12, o.type === 'door' ? 'TUER' : 'FENSTER');
+      dxf.text('OPENINGS', [center[0], center[1]], textHeight * 0.8, o.type === 'door' ? 'TUER' : 'FENSTER');
     }
   }
 
-  return dxf.toString(LAYERS);
+  return dxf.toString(LAYERS, INSUNITS[unit] ?? 0);
 }
