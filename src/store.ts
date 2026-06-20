@@ -12,6 +12,7 @@ import type {
   Room,
   CameraView,
   DrawKind,
+  SketchTool,
   SketchLine,
   SketchCircle,
   ModelInfo,
@@ -120,7 +121,7 @@ interface AppState {
   // ---- 2D sketch ----
   sketchLines: SketchLine[];
   sketchCircles: SketchCircle[];
-  sketchTool: 'line' | 'circle';
+  sketchTool: SketchTool;
   /** In-progress sketch points (line chain start or circle center). */
   pendingSketch: Vec3[];
   selectedSketchId: string | null;
@@ -199,12 +200,15 @@ interface AppState {
   setCameraView: (v: CameraView) => void;
 
   // 2D sketch
-  setSketchTool: (t: 'line' | 'circle') => void;
+  setSketchTool: (t: SketchTool) => void;
   addSketchPoint: (p: Vec3) => void;
   finishSketch: () => void;
   removeSketch: (id: string) => void;
   selectSketch: (id: string | null) => void;
   clearSketch: () => void;
+  /** Move every sketch line endpoint that sits at `from` to `to` (vertex edit). */
+  moveSketchVertex: (from: Vec3, to: Vec3) => void;
+  updateSketchCircle: (id: string, patch: Partial<SketchCircle>) => void;
 
   undo: () => void;
   pushHistory: () => void;
@@ -227,6 +231,7 @@ const defaultDrawSettings: DrawSettings = {
   surfaceSnap: false,
   gridSnap: true,
   gridStepM: 0.1,
+  extrudeHeightMm: 1,
 };
 
 export const useStore = create<AppState>((set, get) => ({
@@ -643,6 +648,28 @@ export const useStore = create<AppState>((set, get) => ({
   setSketchTool: (t) => set({ sketchTool: t, pendingSketch: [] }),
   addSketchPoint: (p) => {
     const { sketchTool, pendingSketch } = get();
+    if (sketchTool === 'area') {
+      // Closed-face chain: keep the full point list so it can close onto the
+      // first point. Each segment is a normal SketchLine (so it stays editable),
+      // and the enclosed loop is recognised as a face for fill + STL export.
+      const chain = pendingSketch;
+      const mkLine = (a: Vec3, b: Vec3): SketchLine => ({ id: nextId('ln'), a, b });
+      if (chain.length === 0) {
+        set({ pendingSketch: [p] });
+        return;
+      }
+      const last = chain[chain.length - 1];
+      if (Math.hypot(last[0] - p[0], last[2] - p[2]) < 1e-7) return;
+      const first = chain[0];
+      const closes = chain.length >= 3 && Math.hypot(first[0] - p[0], first[2] - p[2]) < 1e-5;
+      get().pushHistory();
+      if (closes) {
+        set({ sketchLines: [...get().sketchLines, mkLine(last, first)], pendingSketch: [] });
+      } else {
+        set({ sketchLines: [...get().sketchLines, mkLine(last, p)], pendingSketch: [...chain, p] });
+      }
+      return;
+    }
     if (sketchTool === 'line') {
       if (pendingSketch.length === 0) {
         set({ pendingSketch: [p] });
@@ -680,6 +707,23 @@ export const useStore = create<AppState>((set, get) => ({
   clearSketch: () => {
     get().pushHistory();
     set({ sketchLines: [], sketchCircles: [], pendingSketch: [], selectedSketchId: null });
+  },
+  moveSketchVertex: (from, to) => {
+    const eps = 1e-5;
+    const near = (p: Vec3) => Math.hypot(p[0] - from[0], p[2] - from[2]) < eps;
+    const moved: Vec3 = [to[0], 0, to[2]];
+    get().pushHistory();
+    set({
+      sketchLines: get().sketchLines.map((l) => ({
+        ...l,
+        a: near(l.a) ? moved : l.a,
+        b: near(l.b) ? moved : l.b,
+      })),
+    });
+  },
+  updateSketchCircle: (id, patch) => {
+    get().pushHistory();
+    set({ sketchCircles: get().sketchCircles.map((c) => (c.id === id ? { ...c, ...patch } : c)) });
   },
 
   pushHistory: () => {

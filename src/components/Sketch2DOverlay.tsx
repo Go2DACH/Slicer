@@ -3,10 +3,12 @@ import * as THREE from 'three';
 import { Line, Html } from '@react-three/drei';
 import { useStore } from '../store';
 import { rawDistance, midpoint } from '../lib/geometry';
-import { formatLength } from '../lib/units';
+import { detectSketchFaces } from '../lib/sketchFaces';
+import { formatLength, formatArea } from '../lib/units';
 import type { Vec3 } from '../types';
 
 const Y = 0.03;
+const Y_FILL = 0.02;
 
 function circlePoints(center: Vec3, r: number, segments = 64): THREE.Vector3[] {
   const pts: THREE.Vector3[] = [];
@@ -15,6 +17,50 @@ function circlePoints(center: Vec3, r: number, segments = 64): THREE.Vector3[] {
     pts.push(new THREE.Vector3(center[0] + Math.cos(a) * r, Y, center[2] + Math.sin(a) * r));
   }
   return pts;
+}
+
+/** Flat horizontal triangulation of a sketch face ring (on the XZ plane). */
+function FaceFill({ ring }: { ring: Vec3[] }) {
+  const geom = useMemo(() => {
+    const contour = ring.map((p) => new THREE.Vector2(p[0], p[2]));
+    const tris = THREE.ShapeUtils.triangulateShape(contour, []);
+    const pos: number[] = [];
+    for (const t of tris) {
+      for (const idx of t) {
+        const v = contour[idx];
+        pos.push(v.x, Y_FILL, v.y);
+      }
+    }
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    g.computeVertexNormals();
+    return g;
+  }, [ring]);
+  return (
+    <mesh geometry={geom} raycast={() => null}>
+      <meshBasicMaterial color="#54e0c7" transparent opacity={0.18} side={THREE.DoubleSide} depthWrite={false} />
+    </mesh>
+  );
+}
+
+function ringArea(ring: Vec3[]): number {
+  let a = 0;
+  for (let i = 0; i < ring.length; i++) {
+    const p = ring[i];
+    const q = ring[(i + 1) % ring.length];
+    a += p[0] * q[2] - q[0] * p[2];
+  }
+  return Math.abs(a) / 2;
+}
+
+function ringCentroid(ring: Vec3[]): Vec3 {
+  let x = 0;
+  let z = 0;
+  ring.forEach((p) => {
+    x += p[0];
+    z += p[2];
+  });
+  return [x / ring.length, Y, z / ring.length];
 }
 
 export default function Sketch2DOverlay() {
@@ -31,19 +77,36 @@ export default function Sketch2DOverlay() {
   const unit = useStore((s) => s.unit);
 
   const drawing = mode === 'draw' && drawKind === 'sketch2d';
+  const faces = useMemo(() => detectSketchFaces(lines), [lines]);
 
   const preview = useMemo(() => {
     if (!drawing || pendingSketch.length === 0 || !hoverPoint) return null;
     const origin = pendingSketch[pendingSketch.length - 1];
-    if (sketchTool === 'line') {
-      return { type: 'line' as const, a: origin, b: hoverPoint };
+    if (sketchTool === 'circle') {
+      const r = Math.hypot(hoverPoint[0] - origin[0], hoverPoint[2] - origin[2]);
+      return { type: 'circle' as const, center: origin, r };
     }
-    const r = Math.hypot(hoverPoint[0] - origin[0], hoverPoint[2] - origin[2]);
-    return { type: 'circle' as const, center: origin, r };
+    // line + area: rubber-band segment from the last point to the cursor
+    const first = pendingSketch[0];
+    const closing =
+      sketchTool === 'area' &&
+      pendingSketch.length >= 3 &&
+      Math.hypot(hoverPoint[0] - first[0], hoverPoint[2] - first[2]) < 1e-5;
+    return { type: 'line' as const, a: origin, b: hoverPoint, closing };
   }, [drawing, pendingSketch, hoverPoint, sketchTool]);
 
   return (
     <group>
+      {/* filled faces (behind the line work) */}
+      {faces.map((ring, i) => (
+        <group key={`face_${i}`}>
+          <FaceFill ring={ring} />
+          <Html position={ringCentroid(ring)} center style={{ pointerEvents: 'none' }} zIndexRange={[20, 0]}>
+            <div className="measure-label area">{formatArea(ringArea(ring), scaleFactor, unit)}</div>
+          </Html>
+        </group>
+      ))}
+
       {lines.map((l) => {
         const sel = selectedSketchId === l.id;
         return (
@@ -78,15 +141,17 @@ export default function Sketch2DOverlay() {
         <>
           <Line
             points={[new THREE.Vector3(preview.a[0], Y, preview.a[2]), new THREE.Vector3(preview.b[0], Y, preview.b[2])]}
-            color="#ffd54f"
-            lineWidth={2}
+            color={preview.closing ? '#54e0c7' : '#ffd54f'}
+            lineWidth={preview.closing ? 3 : 2}
             dashed
             dashSize={0.2}
             gapSize={0.1}
             depthTest={false}
           />
           <Html position={midpoint(preview.a, preview.b)} center style={{ pointerEvents: 'none' }}>
-            <div className="measure-label">{formatLength(rawDistance(preview.a, preview.b), scaleFactor, unit)}</div>
+            <div className="measure-label">
+              {preview.closing ? 'schließen ✓' : formatLength(rawDistance(preview.a, preview.b), scaleFactor, unit)}
+            </div>
           </Html>
         </>
       )}
@@ -103,7 +168,7 @@ export default function Sketch2DOverlay() {
       {pendingSketch.map((p, i) => (
         <mesh key={i} position={[p[0], Y, p[2]]}>
           <sphereGeometry args={[Math.max(0.03, 0.01), 12, 12]} />
-          <meshBasicMaterial color="#ffd54f" depthTest={false} />
+          <meshBasicMaterial color={i === 0 && sketchTool === 'area' ? '#54e0c7' : '#ffd54f'} depthTest={false} />
         </mesh>
       ))}
     </group>

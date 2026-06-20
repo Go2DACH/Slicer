@@ -1,6 +1,6 @@
 import { snapWallDirectionXZ, nearestPointOnSegmentXZ } from './geometry';
 import { SNAP_ANGLES } from '../types';
-import type { Vec3, Wall, Room, DrawSettings, SketchLine, SketchCircle } from '../types';
+import type { Vec3, Wall, Room, DrawSettings, SketchLine, SketchCircle, SketchTool } from '../types';
 
 interface SnapContext {
   walls: Wall[];
@@ -106,7 +106,7 @@ interface SketchSnapContext {
   drawSettings: DrawSettings;
   maxDim: number;
   metersPerRaw: number;
-  tool: 'line' | 'circle';
+  tool: SketchTool;
 }
 
 /** Snap a raw floor point for the 2D sketch (endpoints, angle, length/radius grid). */
@@ -148,7 +148,7 @@ export function snapSketchPoint(raw: Vec3, ctx: SketchSnapContext): Vec3 {
 
   if (pendingSketch.length > 0) {
     const origin = pendingSketch[pendingSketch.length - 1];
-    if (tool === 'line' && drawSettings.angleSnap) {
+    if ((tool === 'line' || tool === 'area') && drawSettings.angleSnap) {
       p = snapWallDirectionXZ(origin, p, null, SNAP_ANGLES);
     }
     // length / radius grid snap
