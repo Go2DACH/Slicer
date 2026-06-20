@@ -78,21 +78,23 @@ export default function HintBar() {
     if (openingPlaceType)
       text = (
         <>
-          Auf eine Wand klicken, um {openingPlaceType === 'door' ? 'eine Tür' : 'ein Fenster'} zu platzieren ·{' '}
+          Auf eine Wand tippen, um {openingPlaceType === 'door' ? 'eine Tür' : 'ein Fenster'} zu platzieren ·{' '}
           <span className="kbd">Esc</span> bricht ab
         </>
       );
+    else if (drawTool === 'off')
+      text = <>Zeichnen aus – tippe ein Element zum Auswählen</>;
     else if (drawTool === 'rect')
       text = (
         <>
-          <b>Rechteck</b>: zwei gegenüberliegende Ecken tippen
+          <b>Rechteck-Raum</b>: zwei gegenüberliegende Ecken tippen
         </>
       );
     else
       text = (
         <>
-          Auf den Boden tippen, um <b>Wände</b> zu zeichnen · „Fertig“ beendet die Kette{' '}
-          {pendingWall > 0 ? `· ${pendingWall} aktiv` : ''}
+          <b>Wände</b> tippen · Startpunkt erneut tippen schließt den Raum · nahe Ecken/Wände werden gefangen
+          {pendingWall > 0 ? ` · ${pendingWall} Punkt(e)` : ''}
         </>
       );
   }

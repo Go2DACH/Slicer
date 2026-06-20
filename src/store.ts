@@ -103,8 +103,8 @@ interface AppState {
   openingPlaceType: 'door' | 'window' | null;
   /** Reverse opening direction for the next placed opening. */
   openingFlip: boolean;
-  /** Drawing tool: free polyline walls or a rectangle room. */
-  drawTool: 'wall' | 'rect';
+  /** Drawing tool: walls (polyline), rectangle room, or off (select/inspect). */
+  drawTool: 'wall' | 'rect' | 'off';
   /** Which kind of drawing is active (null = ask the user). */
   drawKind: DrawKind | null;
 
@@ -179,7 +179,7 @@ interface AppState {
   selectRoom: (id: string | null) => void;
   setOpeningPlaceType: (t: 'door' | 'window' | null) => void;
   setOpeningFlip: (v: boolean) => void;
-  setDrawTool: (t: 'wall' | 'rect') => void;
+  setDrawTool: (t: 'wall' | 'rect' | 'off') => void;
   setDrawKind: (k: DrawKind | null) => void;
   setDrawSettings: (patch: Partial<DrawSettings>) => void;
   setCameraView: (v: CameraView) => void;

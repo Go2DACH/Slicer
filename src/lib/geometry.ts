@@ -94,6 +94,18 @@ export function netRawArea(outer: Vec3[], others: { id: string; points: Vec3[] }
   return Math.max(0, gross - holes);
 }
 
+/** Nearest point on segment a-b to p, on the XZ plane. */
+export function nearestPointOnSegmentXZ(p: Vec3, a: Vec3, b: Vec3): { point: Vec3; dist: number } {
+  const abx = b[0] - a[0];
+  const abz = b[2] - a[2];
+  const len2 = abx * abx + abz * abz;
+  let t = len2 > 0 ? ((p[0] - a[0]) * abx + (p[2] - a[2]) * abz) / len2 : 0;
+  t = Math.max(0, Math.min(1, t));
+  const x = a[0] + abx * t;
+  const z = a[2] + abz * t;
+  return { point: [x, 0, z], dist: Math.hypot(p[0] - x, p[2] - z) };
+}
+
 /** Point-in-polygon test on the XZ plane (ray casting). */
 export function pointInPolygonXZ(p: Vec3, poly: Vec3[]): boolean {
   let inside = false;
