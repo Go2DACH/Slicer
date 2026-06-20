@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef } from 'react';
 import { useStore } from '../store';
 import { loadFromFiles, loadFromUrl, describeLoadError } from '../lib/loaders';
+import { decodeShare } from '../lib/share';
 
 /** Resolve a model URL relative to the deploy base path when it is relative. */
 function resolveModelUrl(raw: string): string {
@@ -16,6 +17,8 @@ export function useModelLoading() {
   const setLoadProgress = useStore((s) => s.setLoadProgress);
   const setLoadError = useStore((s) => s.setLoadError);
   const setReadonly = useStore((s) => s.setReadonly);
+  const setSourceFile = useStore((s) => s.setSourceFile);
+  const applyShareSetup = useStore((s) => s.applyShareSetup);
   const startedRef = useRef(false);
 
   const loadFiles = useCallback(
@@ -26,13 +29,16 @@ export function useModelLoading() {
         const { object, info } = await loadFromFiles(files, (f) => setLoadProgress(f));
         const urls = (object.userData.objectUrls as string[]) ?? [];
         setModel(object, info, urls);
+        // Remember the loaded scan file so it can be uploaded + shared.
+        const src = files.find((f) => f.name === info.fileName) ?? files[0] ?? null;
+        setSourceFile(src);
       } catch (err) {
         setLoadError(describeLoadError(err));
       } finally {
         setLoading(false);
       }
     },
-    [setModel, setLoading, setLoadProgress, setLoadError],
+    [setModel, setLoading, setLoadProgress, setLoadError, setSourceFile],
   );
 
   const loadUrl = useCallback(
@@ -59,13 +65,28 @@ export function useModelLoading() {
     if (startedRef.current) return;
     startedRef.current = true;
     const params = new URLSearchParams(window.location.search);
+
+    // Share link: a base64url setup blob that bakes in the model URL plus a
+    // pre-done calibration + alignment (and an optional PIN gate).
+    const shareBlob = params.get('s');
+    if (shareBlob) {
+      const setup = decodeShare(shareBlob);
+      if (setup) {
+        void (async () => {
+          await loadUrl(setup.m, setup.mtl);
+          applyShareSetup(setup);
+        })();
+        return;
+      }
+    }
+
     if (params.get('view') === 'readonly') setReadonly(true);
     const model = params.get('model');
     if (model) {
       const mtl = params.get('mtl') ?? undefined;
       void loadUrl(model, mtl);
     }
-  }, [loadUrl, setReadonly]);
+  }, [loadUrl, setReadonly, applyShareSetup]);
 
   return { loadFiles, loadUrl };
 }

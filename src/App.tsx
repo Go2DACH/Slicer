@@ -12,6 +12,7 @@ import HintBar from './ui/HintBar';
 import TouchActions from './ui/TouchActions';
 import DrawKindDialog from './ui/DrawKindDialog';
 import ViewTools from './ui/ViewTools';
+import PinGate from './ui/PinGate';
 
 export default function App() {
   const { loadFiles, loadUrl } = useModelLoading();
@@ -26,6 +27,7 @@ export default function App() {
   const panelOpen = useStore((s) => s.panelOpen);
   const setPanelOpen = useStore((s) => s.setPanelOpen);
   const calibratePoints = useStore((s) => s.calibratePoints);
+  const locked = useStore((s) => s.locked);
 
   const [dragging, setDragging] = useState(false);
   const [showShare, setShowShare] = useState(false);
@@ -129,6 +131,7 @@ export default function App() {
       {modelObject && mode === 'draw' && drawKind === null && <DrawKindDialog />}
       {showCalibrate && <CalibrateDialog onClose={() => setShowCalibrate(false)} />}
       {showShare && <ShareDialog onClose={() => setShowShare(false)} />}
+      {locked && <PinGate />}
     </div>
   );
 }

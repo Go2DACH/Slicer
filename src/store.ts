@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { unitPresetScale } from './lib/units';
+import { sha256Hex, type ShareSetup } from './lib/share';
 import type {
   AppMode,
   MeasureTool,
@@ -41,6 +42,14 @@ interface AppState {
   loadError: LoadError | null;
   /** Object URLs created for drag&drop file sets, revoked on replace. */
   objectUrls: string[];
+  /** The locally loaded source file (for uploading + sharing). */
+  sourceFile: File | null;
+
+  // ---- Share access gate ----
+  /** SHA-256 hex of the access PIN baked into a share link (null = none). */
+  pinHash: string | null;
+  /** Whether the PIN gate is currently blocking access. */
+  locked: boolean;
 
   // ---- View settings ----
   showGrid: boolean;
@@ -126,6 +135,11 @@ interface AppState {
   setLoading: (loading: boolean) => void;
   setLoadProgress: (p: number) => void;
   setLoadError: (e: LoadError | null) => void;
+  setSourceFile: (f: File | null) => void;
+  /** Apply a shared setup (calibration + alignment + access) from a link. */
+  applyShareSetup: (setup: ShareSetup) => void;
+  /** Try to unlock the PIN gate; returns true on the right code. */
+  unlock: (pin: string) => Promise<boolean>;
 
   setShowGrid: (v: boolean) => void;
   setShowAxes: (v: boolean) => void;
@@ -222,6 +236,10 @@ export const useStore = create<AppState>((set, get) => ({
   loadProgress: 0,
   loadError: null,
   objectUrls: [],
+  sourceFile: null,
+
+  pinHash: null,
+  locked: false,
 
   showGrid: true,
   showAxes: true,
@@ -305,6 +323,33 @@ export const useStore = create<AppState>((set, get) => ({
   setLoading: (loading) => set({ loading, loadProgress: loading ? 0 : get().loadProgress }),
   setLoadProgress: (p) => set({ loadProgress: p }),
   setLoadError: (e) => set({ loadError: e, loading: false }),
+  setSourceFile: (f) => set({ sourceFile: f }),
+
+  applyShareSetup: (s) => {
+    // Applied after the model has loaded (setModel resets these), so the
+    // recipient opens an already-calibrated and aligned scan.
+    set({
+      scaleFactor: s.sf || 1,
+      unit: s.u || 'm',
+      calibrated: !!s.cal,
+      alignQuaternion: s.q ?? [0, 0, 0, 1],
+      alignOffset: s.o ?? [0, 0, 0],
+      alignApplied: !!s.q,
+      readonly: !!s.ro,
+      pinHash: s.p ?? null,
+      locked: !!s.p,
+    });
+  },
+  unlock: async (pin) => {
+    const { pinHash } = get();
+    if (!pinHash) {
+      set({ locked: false });
+      return true;
+    }
+    const ok = (await sha256Hex(pin)) === pinHash;
+    if (ok) set({ locked: false });
+    return ok;
+  },
 
   setShowGrid: (v) => set({ showGrid: v }),
   setShowAxes: (v) => set({ showAxes: v }),
