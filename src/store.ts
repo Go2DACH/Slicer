@@ -195,7 +195,7 @@ export const useStore = create<AppState>((set, get) => ({
   readonly: false,
   resetViewToken: 0,
   walkMode: false,
-  panelOpen: typeof window !== 'undefined' && window.innerWidth < 820 ? false : true,
+  panelOpen: typeof window !== 'undefined' && window.innerWidth < 1024 ? false : true,
 
   mode: 'view',
   measureTool: 'distance',
