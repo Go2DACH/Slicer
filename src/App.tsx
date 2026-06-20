@@ -113,6 +113,11 @@ export default function App() {
           )}
 
           <ViewTools />
+          {modelObject && !panelOpen && (
+            <button className="panel-fab" onClick={() => setPanelOpen(true)} title="Werkzeuge / Dashboard öffnen">
+              ☰ Werkzeuge
+            </button>
+          )}
           <TouchActions />
           <HintBar />
         </div>
