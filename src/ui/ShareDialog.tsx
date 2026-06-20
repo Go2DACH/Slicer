@@ -1,7 +1,22 @@
-import { useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { useStore } from '../store';
 import { encodeShare, sha256Hex, type ShareSetup } from '../lib/share';
-import { loadGithubConfig, saveGithubConfig, uploadScanToRelease, type GithubConfig } from '../lib/github';
+import {
+  loadGithubConfig,
+  saveGithubConfig,
+  uploadScanToRelease,
+  listReleaseAssets,
+  deleteReleaseAsset,
+  type GithubConfig,
+  type ReleaseAsset,
+} from '../lib/github';
+
+function fmtSize(bytes: number): string {
+  if (bytes >= 1e9) return `${(bytes / 1e9).toFixed(1)} GB`;
+  if (bytes >= 1e6) return `${(bytes / 1e6).toFixed(1)} MB`;
+  if (bytes >= 1e3) return `${(bytes / 1e3).toFixed(0)} KB`;
+  return `${bytes} B`;
+}
 
 function baseAppUrl(): string {
   const origin = window.location.origin;
@@ -44,6 +59,49 @@ export default function ShareDialog({ onClose }: { onClose: () => void }) {
   const [building, setBuilding] = useState(false);
   const [copied, setCopied] = useState<string | null>(null);
 
+  // Uploaded scans (for managing / deleting old files).
+  const [assets, setAssets] = useState<ReleaseAsset[] | null>(null);
+  const [listBusy, setListBusy] = useState(false);
+  const [deleting, setDeleting] = useState<number | null>(null);
+
+  const currentCfg = useCallback((): GithubConfig | null => {
+    if (!owner.trim() || !repo.trim() || !tag.trim() || !token.trim()) return null;
+    return { owner: owner.trim(), repo: repo.trim(), tag: tag.trim(), token: token.trim() };
+  }, [owner, repo, tag, token]);
+
+  const refreshAssets = useCallback(async () => {
+    const cfg = currentCfg();
+    if (!cfg) {
+      setUploadErr('Bitte Owner, Repo, Tag und Token ausfüllen, um die Dateien zu laden.');
+      return;
+    }
+    setUploadErr(null);
+    setListBusy(true);
+    try {
+      setAssets(await listReleaseAssets(cfg));
+    } catch (e) {
+      setUploadErr(e instanceof Error ? e.message : String(e));
+    } finally {
+      setListBusy(false);
+    }
+  }, [currentCfg]);
+
+  const removeAsset = async (a: ReleaseAsset) => {
+    const cfg = currentCfg();
+    if (!cfg) return;
+    if (!window.confirm(`„${a.name}“ wirklich löschen? Bestehende Links auf diese Datei funktionieren danach nicht mehr.`))
+      return;
+    setDeleting(a.id);
+    try {
+      await deleteReleaseAsset(cfg, a.id);
+      setAssets((prev) => (prev ? prev.filter((x) => x.id !== a.id) : prev));
+    } catch (e) {
+      setUploadErr(e instanceof Error ? e.message : String(e));
+    } finally {
+      setDeleting(null);
+    }
+  };
+
   const upload = async () => {
     if (!sourceFile) {
       setUploadErr('Keine lokale Scan-Datei vorhanden. Lade den Scan zuerst in den Viewer.');
@@ -61,6 +119,7 @@ export default function ShareDialog({ onClose }: { onClose: () => void }) {
     try {
       const url = await uploadScanToRelease(sourceFile, cfg, (f) => setProgress(f));
       setModelUrl(url);
+      void refreshAssets();
     } catch (e) {
       setUploadErr(e instanceof Error ? e.message : String(e));
     } finally {
@@ -153,6 +212,39 @@ export default function ShareDialog({ onClose }: { onClose: () => void }) {
         {uploadErr && (
           <div className="small" style={{ color: 'var(--danger, #e5484d)', marginTop: 8, wordBreak: 'break-word' }}>
             {uploadErr}
+          </div>
+        )}
+
+        <div className="row" style={{ marginTop: 10 }}>
+          <button onClick={refreshAssets} disabled={listBusy}>
+            {listBusy ? 'Lädt …' : 'Hochgeladene Scans anzeigen'}
+          </button>
+        </div>
+        {assets && (
+          <div className="card" style={{ marginTop: 8 }}>
+            {assets.length === 0 ? (
+              <div className="small muted">Noch keine Scans hochgeladen.</div>
+            ) : (
+              <ul style={{ listStyle: 'none', margin: 0, padding: 0 }}>
+                {assets.map((a) => (
+                  <li
+                    key={a.id}
+                    style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 0', borderBottom: '1px solid var(--border)' }}
+                  >
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div className="mono small" style={{ wordBreak: 'break-all' }}>{a.name}</div>
+                      <div className="small muted">{fmtSize(a.size)}</div>
+                    </div>
+                    <button onClick={() => setModelUrl(a.browser_download_url)} title="Diese Datei für den Link verwenden">
+                      Verwenden
+                    </button>
+                    <button className="danger" onClick={() => removeAsset(a)} disabled={deleting === a.id}>
+                      {deleting === a.id ? '…' : 'Löschen'}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
         )}
 

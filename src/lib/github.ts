@@ -63,6 +63,43 @@ async function ensureRelease(cfg: GithubConfig): Promise<number> {
   return created.id;
 }
 
+export interface ReleaseAsset {
+  id: number;
+  name: string;
+  size: number;
+  browser_download_url: string;
+}
+
+/** List the scan assets currently stored in the share release (newest first). */
+export async function listReleaseAssets(cfg: GithubConfig): Promise<ReleaseAsset[]> {
+  const { owner, repo, tag, token } = cfg;
+  const res = await fetch(`${API}/repos/${owner}/${repo}/releases/tags/${encodeURIComponent(tag)}`, {
+    headers: { Authorization: `Bearer ${token}`, Accept: 'application/vnd.github+json' },
+  });
+  if (res.status === 404) return []; // release not created yet
+  if (!res.ok) throw new Error(`GitHub ${res.status}: ${(await res.text()).slice(0, 200)}`);
+  const rel = await res.json();
+  const assets: ReleaseAsset[] = (rel.assets ?? []).map((a: ReleaseAsset) => ({
+    id: a.id,
+    name: a.name,
+    size: a.size,
+    browser_download_url: a.browser_download_url,
+  }));
+  return assets.reverse();
+}
+
+/** Delete one uploaded scan asset by its id. */
+export async function deleteReleaseAsset(cfg: GithubConfig, assetId: number): Promise<void> {
+  const { owner, repo, token } = cfg;
+  const res = await fetch(`${API}/repos/${owner}/${repo}/releases/assets/${assetId}`, {
+    method: 'DELETE',
+    headers: { Authorization: `Bearer ${token}`, Accept: 'application/vnd.github+json' },
+  });
+  if (!res.ok && res.status !== 404) {
+    throw new Error(`GitHub ${res.status}: ${(await res.text()).slice(0, 200)}`);
+  }
+}
+
 const sanitize = (name: string) => name.replace(/[^A-Za-z0-9._-]+/g, '_');
 
 /**
