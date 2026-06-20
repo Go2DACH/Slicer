@@ -10,3 +10,6 @@ npm-debug.log*
 .env
 .env.*
 !.env.example
+
+# Test/screenshot artifacts
+scripts/*.png

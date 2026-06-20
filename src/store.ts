@@ -331,6 +331,9 @@ export const useStore = create<AppState>((set, get) => ({
       cameraView: m === 'draw' ? 'top' : get().cameraView === 'top' && get().mode === 'draw' ? 'free' : get().cameraView,
       // Walkthrough only makes sense in view/measure modes.
       walkMode: m === 'view' || m === 'measure' ? get().walkMode : false,
+      // Auto-open the tools panel when entering a tool mode (so the dashboard is
+      // visible on mobile/foldables where it is a collapsed drawer).
+      panelOpen: m === 'view' ? get().panelOpen : true,
     }),
   setMeasureTool: (t) => set({ measureTool: t, pendingPoints: [], calibratePoints: [] }),
   setAlignTool: (t) => set({ alignTool: t, alignPoints: [] }),
@@ -586,7 +589,8 @@ export const useStore = create<AppState>((set, get) => ({
   setOpeningPlaceType: (t) => set({ openingPlaceType: t }),
   setOpeningFlip: (v) => set({ openingFlip: v }),
   setDrawTool: (t) => set({ drawTool: t, pendingWallPoints: [] }),
-  setDrawKind: (k) => set({ drawKind: k, pendingWallPoints: [], pendingSketch: [], openingPlaceType: null }),
+  setDrawKind: (k) =>
+    set({ drawKind: k, pendingWallPoints: [], pendingSketch: [], openingPlaceType: null, panelOpen: k ? true : get().panelOpen }),
   setDrawSettings: (patch) => set({ drawSettings: { ...get().drawSettings, ...patch } }),
   setCameraView: (v) => set({ cameraView: v }),
 
