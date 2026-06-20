@@ -10,6 +10,7 @@
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
     "gen:samples": "node scripts/genSamples.mjs",
+    "gen:manual": "node scripts/genManual.mjs",
     "test:unit": "node --experimental-strip-types scripts/unit.test.mts",
     "test:smoke": "node scripts/smoke.mjs"
   },
@@ -29,6 +30,7 @@
     "@types/react-dom": "^18.3.1",
     "@types/three": "^0.169.0",
     "@vitejs/plugin-react": "^4.3.3",
+    "pdfkit": "^0.19.1",
     "typescript": "^5.6.3",
     "vite": "^5.4.10"
   }

@@ -148,6 +148,25 @@ export default function Toolbar({ onShare, onCalibrate }: Props) {
             Teilen
           </button>
         )}
+        <a
+          className="ghost"
+          href={`${import.meta.env.BASE_URL}anleitung.pdf`}
+          target="_blank"
+          rel="noopener noreferrer"
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            textDecoration: 'none',
+            color: 'var(--text)',
+            background: 'transparent',
+            border: '1px solid var(--border)',
+            borderRadius: 'var(--radius)',
+            padding: '7px 12px',
+          }}
+          title="Bedienungsanleitung (PDF)"
+        >
+          ? Hilfe
+        </a>
         <button
           className={panelOpen ? 'active' : ''}
           onClick={() => setPanelOpen(!panelOpen)}

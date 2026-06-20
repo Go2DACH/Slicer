@@ -20,6 +20,7 @@ export default function App() {
   const loadProgress = useStore((s) => s.loadProgress);
   const loadError = useStore((s) => s.loadError);
   const panelOpen = useStore((s) => s.panelOpen);
+  const setPanelOpen = useStore((s) => s.setPanelOpen);
   const calibratePoints = useStore((s) => s.calibratePoints);
 
   const [dragging, setDragging] = useState(false);
@@ -111,6 +112,7 @@ export default function App() {
           <HintBar />
         </div>
 
+        {panelOpen && <div className="panel-backdrop" onClick={() => setPanelOpen(false)} />}
         {panelOpen && <SidePanel />}
       </div>
 

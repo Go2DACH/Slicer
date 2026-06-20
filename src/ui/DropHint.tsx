@@ -26,6 +26,11 @@ export default function DropHint({ onPickFiles, onLoadSample }: Props) {
       <div className="formats small muted" style={{ marginTop: 8 }}>
         Oder per Link: <span className="mono">?model=models/haus.glb</span>
       </div>
+      <div className="formats small cta" style={{ marginTop: 6 }}>
+        <a href={`${import.meta.env.BASE_URL}anleitung.pdf`} target="_blank" rel="noopener noreferrer">
+          📄 Bedienungsanleitung (PDF)
+        </a>
+      </div>
       <input
         ref={input}
         type="file"
