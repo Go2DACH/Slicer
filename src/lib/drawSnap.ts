@@ -11,6 +11,8 @@ interface SnapContext {
   maxDim: number;
   /** Meters per one raw unit (scaleFactor × meters-per-display-unit). */
   metersPerRaw: number;
+  /** Rectangle tool: snap X/Z extents to the grid (no angle snap). */
+  rect?: boolean;
 }
 
 /**
@@ -42,6 +44,18 @@ export function snapDrawPoint(raw: Vec3, ctx: SnapContext): Vec3 {
       }
     }
     if (best) return [best[0], 0, best[2]];
+  }
+
+  // Rectangle tool: snap the X and Z extents to the grid independently.
+  if (ctx.rect && pendingWallPoints.length > 0) {
+    const origin = pendingWallPoints[0];
+    if (drawSettings.gridSnap && metersPerRaw > 0 && drawSettings.gridStepM > 0) {
+      const stepRaw = drawSettings.gridStepM / metersPerRaw;
+      const sx = Math.round((p[0] - origin[0]) / stepRaw) * stepRaw;
+      const sz = Math.round((p[2] - origin[2]) / stepRaw) * stepRaw;
+      p = [origin[0] + sx, 0, origin[2] + sz];
+    }
+    return p;
   }
 
   if (pendingWallPoints.length > 0) {

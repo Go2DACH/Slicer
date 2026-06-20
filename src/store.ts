@@ -44,6 +44,8 @@ interface AppState {
   resetViewToken: number;
   /** First-person walkthrough navigation. */
   walkMode: boolean;
+  /** Side panel visibility (toggle to free the viewport on mobile). */
+  panelOpen: boolean;
 
   // ---- Mode ----
   mode: AppMode;
@@ -90,6 +92,8 @@ interface AppState {
   openingPlaceType: 'door' | 'window' | null;
   /** Reverse opening direction for the next placed opening. */
   openingFlip: boolean;
+  /** Drawing tool: free polyline walls or a rectangle room. */
+  drawTool: 'wall' | 'rect';
   /** Camera view preset (free orbit / top / bottom). */
   cameraView: CameraView;
 
@@ -107,6 +111,7 @@ interface AppState {
   setReadonly: (v: boolean) => void;
   triggerResetView: () => void;
   setWalkMode: (v: boolean) => void;
+  setPanelOpen: (v: boolean) => void;
 
   setMode: (m: AppMode) => void;
   setMeasureTool: (t: MeasureTool) => void;
@@ -150,6 +155,7 @@ interface AppState {
   selectRoom: (id: string | null) => void;
   setOpeningPlaceType: (t: 'door' | 'window' | null) => void;
   setOpeningFlip: (v: boolean) => void;
+  setDrawTool: (t: 'wall' | 'rect') => void;
   setDrawSettings: (patch: Partial<DrawSettings>) => void;
   setCameraView: (v: CameraView) => void;
 
@@ -189,6 +195,7 @@ export const useStore = create<AppState>((set, get) => ({
   readonly: false,
   resetViewToken: 0,
   walkMode: false,
+  panelOpen: typeof window !== 'undefined' && window.innerWidth < 820 ? false : true,
 
   mode: 'view',
   measureTool: 'distance',
@@ -219,6 +226,7 @@ export const useStore = create<AppState>((set, get) => ({
   drawSettings: defaultDrawSettings,
   openingPlaceType: null,
   openingFlip: false,
+  drawTool: 'wall',
   cameraView: 'free',
 
   history: [],
@@ -255,6 +263,7 @@ export const useStore = create<AppState>((set, get) => ({
   setReadonly: (v) => set({ readonly: v }),
   triggerResetView: () => set({ resetViewToken: get().resetViewToken + 1 }),
   setWalkMode: (v) => set({ walkMode: v }),
+  setPanelOpen: (v) => set({ panelOpen: v }),
 
   setMode: (m) =>
     set({
@@ -366,14 +375,41 @@ export const useStore = create<AppState>((set, get) => ({
   addDrawPoint: (p) => {
     const chain = get().pendingWallPoints;
     const ds = get().drawSettings;
+    let wallCounter = get().walls.length;
     const makeWall = (start: Vec3, end: Vec3): Wall => ({
       id: nextId('wall'),
-      name: `Wand ${get().walls.length + 1}`,
+      name: `Wand ${++wallCounter}`,
       start,
       end,
       thickness: ds.wallThickness,
       height: ds.wallHeight,
     });
+
+    // Rectangle tool: first tap = one corner, second tap = opposite corner.
+    if (get().drawTool === 'rect') {
+      if (chain.length === 0) {
+        set({ pendingWallPoints: [p] });
+        return;
+      }
+      const a = chain[0];
+      if (Math.hypot(a[0] - p[0], a[2] - p[2]) < 1e-6) return;
+      const b: Vec3 = [p[0], 0, a[2]];
+      const c: Vec3 = [p[0], 0, p[2]];
+      const d: Vec3 = [a[0], 0, p[2]];
+      get().pushHistory();
+      const room: Room = {
+        id: nextId('room'),
+        name: `Raum ${get().rooms.length + 1}`,
+        points: [a, b, c, d],
+      };
+      set({
+        walls: [...get().walls, makeWall(a, b), makeWall(b, c), makeWall(c, d), makeWall(d, a)],
+        rooms: [...get().rooms, room],
+        pendingWallPoints: [],
+      });
+      return;
+    }
+
     if (chain.length === 0) {
       set({ pendingWallPoints: [p] });
       return;
@@ -493,6 +529,7 @@ export const useStore = create<AppState>((set, get) => ({
   selectRoom: (id) => set({ selectedRoomId: id, selectedWallId: null, selectedOpeningId: null }),
   setOpeningPlaceType: (t) => set({ openingPlaceType: t }),
   setOpeningFlip: (v) => set({ openingFlip: v }),
+  setDrawTool: (t) => set({ drawTool: t, pendingWallPoints: [] }),
   setDrawSettings: (patch) => set({ drawSettings: { ...get().drawSettings, ...patch } }),
   setCameraView: (v) => set({ cameraView: v }),
 

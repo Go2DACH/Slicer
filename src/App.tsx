@@ -9,6 +9,7 @@ import DropHint from './ui/DropHint';
 import CalibrateDialog from './ui/CalibrateDialog';
 import ShareDialog from './ui/ShareDialog';
 import HintBar from './ui/HintBar';
+import TouchActions from './ui/TouchActions';
 
 export default function App() {
   const { loadFiles, loadUrl } = useModelLoading();
@@ -18,7 +19,7 @@ export default function App() {
   const loading = useStore((s) => s.loading);
   const loadProgress = useStore((s) => s.loadProgress);
   const loadError = useStore((s) => s.loadError);
-  const readonly = useStore((s) => s.readonly);
+  const panelOpen = useStore((s) => s.panelOpen);
   const calibratePoints = useStore((s) => s.calibratePoints);
 
   const [dragging, setDragging] = useState(false);
@@ -70,7 +71,7 @@ export default function App() {
     >
       <Toolbar onShare={() => setShowShare(true)} onCalibrate={() => setShowCalibrate(true)} />
 
-      <div className={`main${readonly ? ' ' : ''}`}>
+      <div className={`main${panelOpen ? '' : ' no-panel'}`}>
         <div className="viewport" id="walk-lock-target">
           <Scene />
 
@@ -106,10 +107,11 @@ export default function App() {
             </div>
           )}
 
+          <TouchActions />
           <HintBar />
         </div>
 
-        <SidePanel />
+        {panelOpen && <SidePanel />}
       </div>
 
       {showCalibrate && <CalibrateDialog onClose={() => setShowCalibrate(false)} />}

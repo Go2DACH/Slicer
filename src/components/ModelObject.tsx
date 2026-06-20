@@ -39,6 +39,7 @@ export default function ModelObject({ onPick, onHover }: Props) {
       drawSettings: st.drawSettings,
       maxDim,
       metersPerRaw: st.scaleFactor * (METERS_PER_UNIT[st.unit] ?? 1),
+      rect: st.drawTool === 'rect',
     });
     if (commit) st.addDrawPoint(snapped);
     else st.setHoverPoint(snapped);

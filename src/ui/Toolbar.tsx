@@ -30,6 +30,8 @@ export default function Toolbar({ onShare, onCalibrate }: Props) {
   const readonly = useStore((s) => s.readonly);
   const calibrated = useStore((s) => s.calibrated);
   const modelObject = useStore((s) => s.modelObject);
+  const panelOpen = useStore((s) => s.panelOpen);
+  const setPanelOpen = useStore((s) => s.setPanelOpen);
 
   const fileInput = useRef<HTMLInputElement>(null);
 
@@ -146,6 +148,13 @@ export default function Toolbar({ onShare, onCalibrate }: Props) {
             Teilen
           </button>
         )}
+        <button
+          className={panelOpen ? 'active' : ''}
+          onClick={() => setPanelOpen(!panelOpen)}
+          title="Seitenpanel ein-/ausblenden"
+        >
+          ☰
+        </button>
       </div>
 
       <input

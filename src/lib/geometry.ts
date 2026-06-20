@@ -79,6 +79,41 @@ export function midpoint(a: Vec3, b: Vec3): Vec3 {
   return [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2, (a[2] + b[2]) / 2];
 }
 
+/** Rooms whose polygon is fully contained inside `outer` (immediate holes). */
+export function containedPolygons(outer: Vec3[], others: { id: string; points: Vec3[] }[]): Vec3[][] {
+  const outerArea = rawPolygonArea(outer);
+  return others
+    .filter((o) => rawPolygonArea(o.points) < outerArea && polygonInsideXZ(o.points, outer))
+    .map((o) => o.points);
+}
+
+/** Net raw area of a polygon minus the gross area of polygons contained inside it. */
+export function netRawArea(outer: Vec3[], others: { id: string; points: Vec3[] }[]): number {
+  const gross = rawPolygonArea(outer);
+  const holes = containedPolygons(outer, others).reduce((acc, h) => acc + rawPolygonArea(h), 0);
+  return Math.max(0, gross - holes);
+}
+
+/** Point-in-polygon test on the XZ plane (ray casting). */
+export function pointInPolygonXZ(p: Vec3, poly: Vec3[]): boolean {
+  let inside = false;
+  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+    const xi = poly[i][0];
+    const zi = poly[i][2];
+    const xj = poly[j][0];
+    const zj = poly[j][2];
+    const intersect = zi > p[2] !== zj > p[2] && p[0] < ((xj - xi) * (p[2] - zi)) / (zj - zi) + xi;
+    if (intersect) inside = !inside;
+  }
+  return inside;
+}
+
+/** True if every vertex of `inner` lies inside `outer` (XZ). */
+export function polygonInsideXZ(inner: Vec3[], outer: Vec3[]): boolean {
+  if (inner.length === 0) return false;
+  return inner.every((v) => pointInPolygonXZ(v, outer));
+}
+
 /**
  * Snap a 2D direction (on the XZ plane) to multiples of `stepDeg` degrees,
  * relative to a reference origin. Returns the snapped endpoint.

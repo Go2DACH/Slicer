@@ -102,6 +102,12 @@ export default function CameraController() {
             MIDDLE: THREE.MOUSE.DOLLY,
             RIGHT: THREE.MOUSE.PAN,
           }}
+          // Touch: one finger pans in plan view / rotates in 3D; two fingers
+          // pinch-zoom + pan. A quick tap still registers as a click for picking.
+          touches={{
+            ONE: ortho ? THREE.TOUCH.PAN : THREE.TOUCH.ROTATE,
+            TWO: THREE.TOUCH.DOLLY_PAN,
+          }}
         />
       )}
     </>
