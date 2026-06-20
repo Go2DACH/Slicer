@@ -16,6 +16,7 @@ export default function GroundPlane() {
   const pendingWallPoints = useStore((s) => s.pendingWallPoints);
   const drawSettings = useStore((s) => s.drawSettings);
   const openingPlaceType = useStore((s) => s.openingPlaceType);
+  const drawTool = useStore((s) => s.drawTool);
   const size = useStore((s) => s.modelInfo?.size);
   const scaleFactor = useStore((s) => s.scaleFactor);
   const unit = useStore((s) => s.unit);
@@ -27,7 +28,15 @@ export default function GroundPlane() {
   const metersPerRaw = scaleFactor * (METERS_PER_UNIT[unit] ?? 1);
 
   const snap = (x: number, z: number): Vec3 =>
-    snapDrawPoint([x, 0, z], { walls, rooms, pendingWallPoints, drawSettings, maxDim, metersPerRaw });
+    snapDrawPoint([x, 0, z], {
+      walls,
+      rooms,
+      pendingWallPoints,
+      drawSettings,
+      maxDim,
+      metersPerRaw,
+      rect: drawTool === 'rect',
+    });
 
   const active = mode === 'draw' && !openingPlaceType;
 

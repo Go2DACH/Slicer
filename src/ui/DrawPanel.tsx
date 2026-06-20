@@ -42,6 +42,8 @@ export default function DrawPanel() {
   const setOpeningFlip = useStore((s) => s.setOpeningFlip);
   const finishWallChain = useStore((s) => s.finishWallChain);
   const pendingWall = useStore((s) => s.pendingWallPoints.length);
+  const drawTool = useStore((s) => s.drawTool);
+  const setDrawTool = useStore((s) => s.setDrawTool);
   const unit = useStore((s) => s.unit);
   const undo = useStore((s) => s.undo);
   const clearBim = useStore((s) => s.clearBim);
@@ -66,6 +68,29 @@ export default function DrawPanel() {
       <h3>Zeichnen</h3>
       <div className="card">
         <div className="field">
+          <label>Werkzeug</label>
+          <div className="row">
+            <button
+              className={drawTool === 'wall' ? 'active' : ''}
+              onClick={() => { setDrawTool('wall'); setOpeningPlaceType(null); }}
+            >
+              ▟ Wände (Punkte)
+            </button>
+            <button
+              className={drawTool === 'rect' ? 'active' : ''}
+              onClick={() => { setDrawTool('rect'); setOpeningPlaceType(null); }}
+            >
+              ▭ Rechteck-Raum
+            </button>
+          </div>
+          {drawTool === 'rect' && (
+            <div className="small muted" style={{ marginTop: 4 }}>
+              Zwei gegenüberliegende Ecken antippen – fertiger Raum in einem Schritt.
+            </div>
+          )}
+        </div>
+
+        <div className="field" style={{ marginTop: 12 }}>
           <label>Ansicht</label>
           <div className="row">
             <button className={cameraView === 'top' ? 'active' : ''} onClick={() => setCameraView('top')}>

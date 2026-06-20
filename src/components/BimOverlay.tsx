@@ -3,7 +3,7 @@ import * as THREE from 'three';
 import { Line, Html } from '@react-three/drei';
 import { useStore } from '../store';
 import { buildBimGroup } from '../lib/bimGeometry';
-import { rawDistance, rawPolygonArea, midpoint } from '../lib/geometry';
+import { rawDistance, midpoint, containedPolygons, netRawArea } from '../lib/geometry';
 import { formatLength, formatArea } from '../lib/units';
 import type { Vec3, Wall, Opening, Room } from '../types';
 
@@ -74,15 +74,18 @@ function windowSymbol(wall: Wall, o: Opening, s: number): THREE.Vector3[][] {
   return [rail(t), rail(-t), rail(0), tick];
 }
 
-/** Build a filled floor geometry for a room polygon (triangulated). */
-function roomGeometry(points: Vec3[]): THREE.BufferGeometry | null {
+/** Build a filled floor geometry for a room polygon with optional holes. */
+function roomGeometry(points: Vec3[], holes: Vec3[][]): THREE.BufferGeometry | null {
   if (points.length < 3) return null;
   const contour = points.map((p) => new THREE.Vector2(p[0], p[2]));
-  const tris = THREE.ShapeUtils.triangulateShape(contour, []);
+  const holeContours = holes.map((h) => h.map((p) => new THREE.Vector2(p[0], p[2])));
+  const all = [contour, ...holeContours];
+  const tris = THREE.ShapeUtils.triangulateShape(contour, holeContours);
+  const flat = all.flat();
   const positions: number[] = [];
   for (const t of tris) {
     for (const idx of t) {
-      const v = contour[idx];
+      const v = flat[idx];
       positions.push(v.x, 0.01, v.y);
     }
   }
@@ -92,16 +95,19 @@ function roomGeometry(points: Vec3[]): THREE.BufferGeometry | null {
   return geom;
 }
 
-function RoomFill({ room, selected }: { room: Room; selected: boolean }) {
+function RoomFill({ room, allRooms, selected }: { room: Room; allRooms: Room[]; selected: boolean }) {
   const scaleFactor = useStore((s) => s.scaleFactor);
   const unit = useStore((s) => s.unit);
   const selectRoom = useStore((s) => s.selectRoom);
-  const geom = useMemo(() => roomGeometry(room.points), [room.points]);
+  const others = useMemo(() => allRooms.filter((r) => r.id !== room.id), [allRooms, room.id]);
+  const holes = useMemo(() => containedPolygons(room.points, others), [room.points, others]);
+  const geom = useMemo(() => roomGeometry(room.points, holes), [room.points, holes]);
   useEffect(() => () => geom?.dispose(), [geom]);
   if (!geom) return null;
   const c = room.points.reduce((acc, p) => [acc[0] + p[0], 0, acc[2] + p[2]] as Vec3, [0, 0, 0] as Vec3);
   const centroid: Vec3 = [c[0] / room.points.length, 0.05, c[2] / room.points.length];
-  const area = formatArea(rawPolygonArea(room.points), scaleFactor, unit);
+  const net = netRawArea(room.points, others);
+  const area = formatArea(net, scaleFactor, unit) + (holes.length ? ' (netto)' : '');
   return (
     <group>
       <mesh
@@ -142,6 +148,7 @@ export default function BimOverlay() {
   const selectedRoomId = useStore((s) => s.selectedRoomId);
   const selectWall = useStore((s) => s.selectWall);
   const addOpening = useStore((s) => s.addOpening);
+  const drawTool = useStore((s) => s.drawTool);
 
   const group = useMemo(
     () => buildBimGroup(walls, openings, scaleFactor, { transparent: true }),
@@ -179,10 +186,17 @@ export default function BimOverlay() {
 
   const pendingLine: Vec3[] | null = useMemo(() => {
     if (mode !== 'draw' || pendingWallPoints.length === 0 || openingPlaceType) return null;
+    // Rectangle preview: outline from the first corner to the cursor.
+    if (drawTool === 'rect') {
+      if (!hoverPoint) return null;
+      const a = pendingWallPoints[0];
+      const p = hoverPoint;
+      return [a, [p[0], 0, a[2]], [p[0], 0, p[2]], [a[0], 0, p[2]], a];
+    }
     const pts = [...pendingWallPoints];
     if (hoverPoint) pts.push([hoverPoint[0], hoverPoint[1], hoverPoint[2]]);
     return pts.length >= 2 ? pts : null;
-  }, [mode, pendingWallPoints, hoverPoint, openingPlaceType]);
+  }, [mode, pendingWallPoints, hoverPoint, openingPlaceType, drawTool]);
 
   const wallById = (id: string) => walls.find((w) => w.id === id);
 
@@ -192,7 +206,7 @@ export default function BimOverlay() {
 
       {/* room fills + areas */}
       {rooms.map((r) => (
-        <RoomFill key={r.id} room={r} selected={selectedRoomId === r.id} />
+        <RoomFill key={r.id} room={r} allRooms={rooms} selected={selectedRoomId === r.id} />
       ))}
 
       {/* selection outline */}

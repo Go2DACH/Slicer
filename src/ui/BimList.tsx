@@ -1,5 +1,5 @@
 import { useStore } from '../store';
-import { rawDistance, rawPolygonArea } from '../lib/geometry';
+import { rawDistance, netRawArea } from '../lib/geometry';
 import { formatLength, formatArea } from '../lib/units';
 
 function RoomsSummary() {
@@ -12,7 +12,8 @@ function RoomsSummary() {
   const renameRoom = useStore((s) => s.renameRoom);
 
   if (rooms.length === 0) return null;
-  const rawTotal = rooms.reduce((acc, r) => acc + rawPolygonArea(r.points), 0);
+  const others = (id: string) => rooms.filter((r) => r.id !== id);
+  const rawTotal = rooms.reduce((acc, r) => acc + netRawArea(r.points, others(r.id)), 0);
 
   return (
     <div style={{ marginBottom: 12 }}>
@@ -27,7 +28,7 @@ function RoomsSummary() {
               onChange={(e) => renameRoom(r.id, e.target.value)}
               onClick={(e) => e.stopPropagation()}
             />
-            <div className="sub mono">{formatArea(rawPolygonArea(r.points), scaleFactor, unit)}</div>
+            <div className="sub mono">{formatArea(netRawArea(r.points, others(r.id)), scaleFactor, unit)}</div>
           </div>
           <button className="icon-btn danger" onClick={(e) => { e.stopPropagation(); removeRoom(r.id); }}>
             ✕
