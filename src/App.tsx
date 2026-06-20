@@ -11,6 +11,7 @@ import ShareDialog from './ui/ShareDialog';
 import HintBar from './ui/HintBar';
 import TouchActions from './ui/TouchActions';
 import DrawKindDialog from './ui/DrawKindDialog';
+import ViewTools from './ui/ViewTools';
 
 export default function App() {
   const { loadFiles, loadUrl } = useModelLoading();
@@ -111,6 +112,7 @@ export default function App() {
             </div>
           )}
 
+          <ViewTools />
           <TouchActions />
           <HintBar />
         </div>
