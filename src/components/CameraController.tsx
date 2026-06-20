@@ -11,8 +11,10 @@ export default function CameraController() {
   const alignQuaternion = useStore((s) => s.alignQuaternion);
   const alignOffset = useStore((s) => s.alignOffset);
   const resetViewToken = useStore((s) => s.resetViewToken);
-  const topDown = useStore((s) => s.topDown);
+  const cameraView = useStore((s) => s.cameraView);
   const walkMode = useStore((s) => s.walkMode);
+
+  const ortho = cameraView !== 'free';
 
   const controlsRef = useRef<OrbitControlsImpl>(null);
   const perspRef = useRef<THREE.PerspectiveCamera>(null);
@@ -32,10 +34,12 @@ export default function CameraController() {
     const radius = Math.max(sphere.radius, 1e-3);
     const controls = controlsRef.current;
 
-    if (topDown && orthoRef.current) {
+    if (ortho && orthoRef.current) {
       const cam = orthoRef.current;
-      cam.position.set(center.x, center.y + radius * 4, center.z + 0.0001);
-      cam.up.set(0, 0, -1);
+      const fromTop = cameraView === 'top';
+      cam.position.set(center.x, center.y + (fromTop ? radius * 4 : -radius * 4), center.z + 0.0001);
+      // up vector keeps the plan upright for top, mirrored for bottom
+      cam.up.set(0, 0, fromTop ? -1 : 1);
       cam.near = 0.01;
       cam.far = radius * 40;
       const aspect = size.width / size.height;
@@ -74,27 +78,27 @@ export default function CameraController() {
     const id = requestAnimationFrame(fit);
     return () => cancelAnimationFrame(id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [modelObject, resetViewToken, topDown, size.width, size.height, alignQuaternion, alignOffset]);
+  }, [modelObject, resetViewToken, cameraView, size.width, size.height, alignQuaternion, alignOffset]);
 
   return (
     <>
-      <PerspectiveCamera ref={perspRef} makeDefault={!topDown} fov={walkMode ? 70 : 50} position={[5, 5, 5]} />
-      <OrthographicCamera ref={orthoRef} makeDefault={topDown} position={[0, 100, 0]} />
+      <PerspectiveCamera ref={perspRef} makeDefault={!ortho} fov={walkMode ? 70 : 50} position={[5, 5, 5]} />
+      <OrthographicCamera ref={orthoRef} makeDefault={ortho} position={[0, 100, 0]} />
       {walkMode ? (
         <WalkControls />
       ) : (
         <OrbitControls
-          key={topDown ? 'ortho' : 'persp'}
+          key={cameraView}
           ref={controlsRef}
           makeDefault
-          enableRotate={!topDown}
+          enableRotate={!ortho}
           enableDamping
           dampingFactor={0.12}
           rotateSpeed={0.9}
-          // In plan view left-drag pans; otherwise it orbits. Point picking uses
-          // click-vs-drag detection, so left-drag-to-orbit doesn't place points.
+          // In plan/bottom view left-drag pans; otherwise it orbits. Point picking
+          // uses click-vs-drag detection, so left-drag-to-orbit doesn't place points.
           mouseButtons={{
-            LEFT: topDown ? THREE.MOUSE.PAN : THREE.MOUSE.ROTATE,
+            LEFT: ortho ? THREE.MOUSE.PAN : THREE.MOUSE.ROTATE,
             MIDDLE: THREE.MOUSE.DOLLY,
             RIGHT: THREE.MOUSE.PAN,
           }}

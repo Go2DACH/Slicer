@@ -25,6 +25,8 @@ export default function Toolbar({ onShare, onCalibrate }: Props) {
   const triggerResetView = useStore((s) => s.triggerResetView);
   const walkMode = useStore((s) => s.walkMode);
   const setWalkMode = useStore((s) => s.setWalkMode);
+  const cameraView = useStore((s) => s.cameraView);
+  const setCameraView = useStore((s) => s.setCameraView);
   const readonly = useStore((s) => s.readonly);
   const calibrated = useStore((s) => s.calibrated);
   const modelObject = useStore((s) => s.modelObject);
@@ -58,6 +60,43 @@ export default function Toolbar({ onShare, onCalibrate }: Props) {
         </button>
         <button onClick={triggerResetView} disabled={!modelObject} title="Ansicht zurücksetzen">
           Reset
+        </button>
+      </div>
+
+      <div className="divider" />
+
+      <div className="group" title="Kameraperspektive">
+        <button
+          className={cameraView === 'free' && !walkMode ? 'active' : ''}
+          disabled={!modelObject}
+          onClick={() => {
+            setWalkMode(false);
+            setCameraView('free');
+          }}
+        >
+          3D
+        </button>
+        <button
+          className={cameraView === 'top' && !walkMode ? 'active' : ''}
+          disabled={!modelObject}
+          onClick={() => {
+            setWalkMode(false);
+            setCameraView('top');
+          }}
+          title="Draufsicht (von oben)"
+        >
+          Oben
+        </button>
+        <button
+          className={cameraView === 'bottom' && !walkMode ? 'active' : ''}
+          disabled={!modelObject}
+          onClick={() => {
+            setWalkMode(false);
+            setCameraView('bottom');
+          }}
+          title="Untersicht (von unten)"
+        >
+          Unten
         </button>
         <button
           className={walkMode ? 'active' : ''}
