@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import * as THREE from 'three';
 import { useStore } from '../store';
 import { snapDrawPoint } from '../lib/drawSnap';
+import { METERS_PER_UNIT } from '../lib/units';
 import type { Vec3 } from '../types';
 
 /**
@@ -16,14 +17,17 @@ export default function GroundPlane() {
   const drawSettings = useStore((s) => s.drawSettings);
   const openingPlaceType = useStore((s) => s.openingPlaceType);
   const size = useStore((s) => s.modelInfo?.size);
+  const scaleFactor = useStore((s) => s.scaleFactor);
+  const unit = useStore((s) => s.unit);
   const addDrawPoint = useStore((s) => s.addDrawPoint);
   const setHoverPoint = useStore((s) => s.setHoverPoint);
 
   const maxDim = size ? Math.max(...size) : 10;
   const planeSize = useMemo(() => maxDim * 6 + 10, [maxDim]);
+  const metersPerRaw = scaleFactor * (METERS_PER_UNIT[unit] ?? 1);
 
   const snap = (x: number, z: number): Vec3 =>
-    snapDrawPoint([x, 0, z], { walls, rooms, pendingWallPoints, drawSettings, maxDim });
+    snapDrawPoint([x, 0, z], { walls, rooms, pendingWallPoints, drawSettings, maxDim, metersPerRaw });
 
   const active = mode === 'draw' && !openingPlaceType;
 

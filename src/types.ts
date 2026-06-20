@@ -94,6 +94,10 @@ export interface DrawSettings {
   endpointSnap: boolean;
   /** Snap draw points onto the scan surface ("Fläche fangen"). */
   surfaceSnap: boolean;
+  /** Snap new wall length to a grid (e.g. 10 cm steps). */
+  gridSnap: boolean;
+  /** Grid step in meters for length snapping. */
+  gridStepM: number;
 }
 
 /** Allowed snap angles (degrees) for new wall directions. */

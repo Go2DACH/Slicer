@@ -118,6 +118,23 @@ export default function DrawPanel() {
           <input type="checkbox" checked={d.angleSnap} onChange={(e) => set({ angleSnap: e.target.checked })} />
           Winkel-Raster (30/45/70/90/120/180°)
         </label>
+        <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 6 }}>
+          <input type="checkbox" checked={d.gridSnap} onChange={(e) => set({ gridSnap: e.target.checked })} />
+          Längen-Raster ({Math.round(d.gridStepM * 100)} cm Schritte)
+        </label>
+        {d.gridSnap && (
+          <div className="row" style={{ marginTop: 6, gap: 4 }}>
+            {[5, 10, 25, 50].map((cmStep) => (
+              <button
+                key={cmStep}
+                className={Math.abs(d.gridStepM - cmStep / 100) < 1e-6 ? 'active' : ''}
+                onClick={() => set({ gridStepM: cmStep / 100 })}
+              >
+                {cmStep} cm
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Walls */}

@@ -3,6 +3,7 @@ import * as THREE from 'three';
 import { useStore } from '../store';
 import { buildBVH } from '../lib/bvh';
 import { snapDrawPoint } from '../lib/drawSnap';
+import { METERS_PER_UNIT } from '../lib/units';
 import type { Vec3 } from '../types';
 
 interface Props {
@@ -28,15 +29,16 @@ export default function ModelObject({ onPick, onHover }: Props) {
   // "Fläche fangen": project a surface hit onto the floor plane (Y=0) and draw there.
   const surfaceDrawActive = mode === 'draw' && drawSettings.surfaceSnap && !openingPlaceType;
   const doSurfaceDraw = (point: THREE.Vector3, commit: boolean) => {
-    const size = useStore.getState().modelInfo?.size;
-    const maxDim = size ? Math.max(...size) : 10;
     const st = useStore.getState();
+    const size = st.modelInfo?.size;
+    const maxDim = size ? Math.max(...size) : 10;
     const snapped = snapDrawPoint([point.x, 0, point.z] as Vec3, {
       walls: st.walls,
       rooms: st.rooms,
       pendingWallPoints: st.pendingWallPoints,
       drawSettings: st.drawSettings,
       maxDim,
+      metersPerRaw: st.scaleFactor * (METERS_PER_UNIT[st.unit] ?? 1),
     });
     if (commit) st.addDrawPoint(snapped);
     else st.setHoverPoint(snapped);
