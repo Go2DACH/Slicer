@@ -2,8 +2,8 @@
 import assert from 'node:assert';
 import { rawDistance, rawPolylineLength, rawPolygonArea, snapAngleXZ } from '../src/lib/geometry.ts';
 import { formatLength, formatArea, unitPresetScale } from '../src/lib/units.ts';
-import { buildFloorPlanDxf } from '../src/lib/dxf.ts';
-import type { Wall, Opening } from '../src/types.ts';
+import { buildFloorPlanDxf, buildSketchDxf } from '../src/lib/dxf.ts';
+import type { Wall, Opening, SketchLine, SketchCircle } from '../src/types.ts';
 
 let passed = 0;
 const ok = (name: string, cond: boolean) => {
@@ -53,5 +53,17 @@ ok('dxf ends with EOF', dxf.trim().endsWith('EOF'));
 // DXF with calibration scaleFactor 0.5 -> a 4-unit wall is 2.00 m
 const dxf2 = buildFloorPlanDxf(walls, openings, 0.5, { includeDims: true });
 ok('dxf scaled dim 2.00', dxf2.includes('2.00 m'));
+
+// 2D sketch DXF: line + circle, scaled
+const sketchLines: SketchLine[] = [{ id: 'l1', a: [0, 0, 0], b: [2, 0, 0] }];
+const sketchCircles: SketchCircle[] = [{ id: 'c1', center: [1, 0, 1], r: 0.5 }];
+const sdxf = buildSketchDxf(sketchLines, sketchCircles, 1, 'm');
+ok('sketch dxf has LINE', sdxf.includes('LINE'));
+ok('sketch dxf has CIRCLE', sdxf.includes('CIRCLE'));
+ok('sketch dxf has SKETCH layer', sdxf.includes('SKETCH'));
+ok('sketch dxf ends with EOF', sdxf.trim().endsWith('EOF'));
+// scaled radius: scaleFactor 2 -> r 0.5 becomes 1.0
+const sdxf2 = buildSketchDxf([], sketchCircles, 2, 'm');
+ok('sketch dxf scaled radius = 1', sdxf2.includes('\n40\n1\n'));
 
 console.log(`\n${passed} assertions passed.`);

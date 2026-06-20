@@ -1,4 +1,4 @@
-import type { Wall, Opening } from '../types';
+import type { Wall, Opening, SketchLine, SketchCircle } from '../types';
 
 /**
  * Minimal AutoCAD R12 (AC1009) ASCII DXF writer.
@@ -43,6 +43,15 @@ class DxfBuilder {
       this.push(30, 0);
     }
     this.push(0, 'SEQEND');
+  }
+
+  circle(layer: string, center: P2, radius: number) {
+    this.push(0, 'CIRCLE');
+    this.push(8, layer);
+    this.push(10, center[0]);
+    this.push(20, center[1]);
+    this.push(30, 0);
+    this.push(40, radius);
   }
 
   text(layer: string, at: P2, height: number, content: string, rotationDeg = 0) {
@@ -166,4 +175,24 @@ export function buildFloorPlanDxf(
   }
 
   return dxf.toString(LAYERS, INSUNITS[unit] ?? 0);
+}
+
+const SKETCH_LAYERS = [{ name: 'SKETCH', color: 7 }];
+
+/** Export a 2D sketch (lines + circles) as DXF in real units. */
+export function buildSketchDxf(
+  lines: SketchLine[],
+  circles: SketchCircle[],
+  scaleFactor: number,
+  unit = 'm',
+): string {
+  const dxf = new DxfBuilder();
+  const s = scaleFactor;
+  for (const l of lines) {
+    dxf.line('SKETCH', mapPoint(l.a[0], l.a[2], s), mapPoint(l.b[0], l.b[2], s));
+  }
+  for (const c of circles) {
+    dxf.circle('SKETCH', mapPoint(c.center[0], c.center[2], s), c.r * s);
+  }
+  return dxf.toString(SKETCH_LAYERS, INSUNITS[unit] ?? 0);
 }

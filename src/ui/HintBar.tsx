@@ -9,6 +9,9 @@ export default function HintBar() {
   const alignPts = useStore((s) => s.alignPoints.length);
   const openingPlaceType = useStore((s) => s.openingPlaceType);
   const pendingWall = useStore((s) => s.pendingWallPoints.length);
+  const drawKind = useStore((s) => s.drawKind);
+  const drawTool = useStore((s) => s.drawTool);
+  const sketchTool = useStore((s) => s.sketchTool);
   const walkMode = useStore((s) => s.walkMode);
 
   if (!modelObject) return null;
@@ -60,7 +63,18 @@ export default function HintBar() {
           <b>2 Wandpunkte</b> klicken, um die Wand achsparallel zu drehen · {alignPts}/2
         </>
       );
-  } else if (mode === 'draw') {
+  } else if (mode === 'draw' && drawKind === 'sketch2d') {
+    text =
+      sketchTool === 'line' ? (
+        <>
+          Punkte tippen für <b>Linien</b> · „Fertig“ beendet die Kette
+        </>
+      ) : (
+        <>
+          <b>Kreis</b>: Mittelpunkt tippen, dann Radius-Punkt tippen
+        </>
+      );
+  } else if (mode === 'draw' && drawKind === 'bim') {
     if (openingPlaceType)
       text = (
         <>
@@ -68,11 +82,17 @@ export default function HintBar() {
           <span className="kbd">Esc</span> bricht ab
         </>
       );
+    else if (drawTool === 'rect')
+      text = (
+        <>
+          <b>Rechteck</b>: zwei gegenüberliegende Ecken tippen
+        </>
+      );
     else
       text = (
         <>
-          Auf den Boden klicken, um <b>Wände</b> zu zeichnen · <span className="kbd">Enter</span>/<span className="kbd">Esc</span>{' '}
-          beendet die Kette {pendingWall > 0 ? `· ${pendingWall} aktiv` : ''}
+          Auf den Boden tippen, um <b>Wände</b> zu zeichnen · „Fertig“ beendet die Kette{' '}
+          {pendingWall > 0 ? `· ${pendingWall} aktiv` : ''}
         </>
       );
   }

@@ -31,7 +31,8 @@ export function useKeyboard() {
         if (store.mode === 'measure' && (store.measureTool === 'polyline' || store.measureTool === 'polygon')) {
           store.finishMeasurement();
         }
-        if (store.mode === 'draw') store.finishWallChain();
+        if (store.mode === 'draw' && store.drawKind === 'sketch2d') store.finishSketch();
+        else if (store.mode === 'draw') store.finishWallChain();
       }
     };
     window.addEventListener('keydown', handler);

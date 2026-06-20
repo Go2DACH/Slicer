@@ -60,6 +60,24 @@ export interface Room {
   points: Vec3[];
 }
 
+/** What is drawn in draw mode: BIM (rooms/walls) or a plain 2D sketch. */
+export type DrawKind = 'bim' | 'sketch2d';
+
+/** A 2D sketch line on the floor plane (world coords, Y=0). */
+export interface SketchLine {
+  id: string;
+  a: Vec3;
+  b: Vec3;
+}
+
+/** A 2D sketch circle on the floor plane. */
+export interface SketchCircle {
+  id: string;
+  center: Vec3;
+  /** Radius in raw model units. */
+  r: number;
+}
+
 export interface ModelInfo {
   triangleCount: number;
   /** Number of points for point-cloud models (0 for meshes). */
