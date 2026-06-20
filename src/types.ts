@@ -63,6 +63,9 @@ export interface Room {
 /** What is drawn in draw mode: BIM (rooms/walls) or a plain 2D sketch. */
 export type DrawKind = 'bim' | 'sketch2d';
 
+/** 2D sketch tool: free lines, circles, or a closed area (face) chain. */
+export type SketchTool = 'line' | 'circle' | 'area';
+
 /** A 2D sketch line on the floor plane (world coords, Y=0). */
 export interface SketchLine {
   id: string;
@@ -116,6 +119,8 @@ export interface DrawSettings {
   gridSnap: boolean;
   /** Grid step in meters for length snapping. */
   gridStepM: number;
+  /** Extrude height (mm) for exporting closed 2D faces as a printable STL. */
+  extrudeHeightMm: number;
 }
 
 /** Allowed snap angles (degrees) for new wall directions. */
