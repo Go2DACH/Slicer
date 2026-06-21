@@ -1,5 +1,6 @@
 import { useStore } from '../store';
-import { METERS_PER_UNIT } from '../lib/units';
+import { METERS_PER_UNIT, formatArea, formatLength } from '../lib/units';
+import { rawPolygonArea, rawPolylineLength } from '../lib/geometry';
 
 function NumberField({
   label,
@@ -45,6 +46,11 @@ export default function DrawPanel() {
   const drawTool = useStore((s) => s.drawTool);
   const setDrawTool = useStore((s) => s.setDrawTool);
   const unit = useStore((s) => s.unit);
+  const scaleFactor = useStore((s) => s.scaleFactor);
+  const boundary = useStore((s) => s.boundary);
+  const pendingBoundary = useStore((s) => s.pendingBoundary.length);
+  const finishBoundary = useStore((s) => s.finishBoundary);
+  const clearBoundary = useStore((s) => s.clearBoundary);
   const undo = useStore((s) => s.undo);
   const clearBim = useStore((s) => s.clearBim);
   const wallCount = useStore((s) => s.walls.length);
@@ -83,6 +89,12 @@ export default function DrawPanel() {
               ▭ Raum
             </button>
             <button
+              className={drawTool === 'boundary' ? 'active' : ''}
+              onClick={() => { setDrawTool(drawTool === 'boundary' ? 'off' : 'boundary'); setOpeningPlaceType(null); }}
+            >
+              ⬡ Grundstück
+            </button>
+            <button
               className={drawTool === 'off' ? 'active' : ''}
               onClick={() => { setDrawTool('off'); setOpeningPlaceType(null); }}
             >
@@ -94,7 +106,9 @@ export default function DrawPanel() {
               ? 'Punkte tippen; auf den Startpunkt tippen schließt den Raum. Nahe Ecken/Wände werden gefangen.'
               : drawTool === 'rect'
                 ? 'Zwei gegenüberliegende Ecken antippen – fertiger Raum in einem Schritt.'
-                : 'Zeichnen aus. Tippe ein Element zum Auswählen; ziehen verschiebt die Ansicht.'}
+                : drawTool === 'boundary'
+                  ? 'Grundstücksgrenze: Eckpunkte tippen, auf den Startpunkt tippen schließt die Fläche.'
+                  : 'Zeichnen aus. Tippe ein Element zum Auswählen; ziehen verschiebt die Ansicht.'}
           </div>
         </div>
 
@@ -207,6 +221,32 @@ export default function DrawPanel() {
             title="Alle Wände, Öffnungen und Räume löschen"
           >
             🗑 Löschen
+          </button>
+        </div>
+      </div>
+
+      {/* Property boundary */}
+      <div className="card" style={{ marginTop: 12 }}>
+        <h3 style={{ marginBottom: 8 }}>Grundstücksgrenze</h3>
+        {boundary.length >= 3 ? (
+          <div className="small">
+            <span className="badge ok">gesetzt</span>{' '}
+            {formatArea(rawPolygonArea(boundary), scaleFactor, unit)} · Umfang{' '}
+            {formatLength(rawPolylineLength([...boundary, boundary[0]]), scaleFactor, unit)}
+          </div>
+        ) : (
+          <div className="small muted">
+            Noch keine Grenze. Werkzeug <b>⬡ Grundstück</b> wählen und die Eckpunkte des Grundstücks tippen.
+          </div>
+        )}
+        <div className="row" style={{ marginTop: 10 }}>
+          {pendingBoundary > 0 && (
+            <button className="active" onClick={finishBoundary} disabled={pendingBoundary < 3}>
+              Grenze schließen
+            </button>
+          )}
+          <button className="danger" onClick={clearBoundary} disabled={boundary.length === 0 && pendingBoundary === 0}>
+            🗑 Grenze löschen
           </button>
         </div>
       </div>

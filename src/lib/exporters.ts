@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { GLTFExporter } from 'three/examples/jsm/exporters/GLTFExporter.js';
-import type { Wall, Opening } from '../types';
+import type { Wall, Opening, Vec3 } from '../types';
+import { rawPolygonArea, rawPolylineLength } from './geometry';
 import { buildBimGroup } from './bimGeometry';
 
 export function downloadBlob(blob: Blob, filename: string) {
@@ -25,11 +26,20 @@ export function exportJson(
   scaleFactor: number,
   unit: string,
   calibrated: boolean,
+  boundary: Vec3[] = [],
 ): string {
   const data = {
     schema: 'slicer-bim/1',
     generatedAt: new Date().toISOString(),
     calibration: { scaleFactor, unit, calibrated },
+    boundary:
+      boundary.length >= 3
+        ? {
+            points: boundary.map((p) => ({ x: p[0] * scaleFactor, z: p[2] * scaleFactor })),
+            perimeter: rawPolylineLength([...boundary, boundary[0]]) * scaleFactor,
+            area: rawPolygonArea(boundary) * scaleFactor * scaleFactor,
+          }
+        : null,
     walls: walls.map((w) => ({
       id: w.id,
       name: w.name,

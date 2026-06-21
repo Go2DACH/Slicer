@@ -28,6 +28,7 @@ export default function Toolbar({ onShare, onCalibrate }: Props) {
   const cameraView = useStore((s) => s.cameraView);
   const setCameraView = useStore((s) => s.setCameraView);
   const readonly = useStore((s) => s.readonly);
+  const viewerMode = useStore((s) => s.viewerMode);
   const calibrated = useStore((s) => s.calibrated);
   const modelObject = useStore((s) => s.modelObject);
   const panelOpen = useStore((s) => s.panelOpen);
@@ -54,12 +55,16 @@ export default function Toolbar({ onShare, onCalibrate }: Props) {
       <div className="divider" />
 
       <div className="group">
-        <button className={showGrid ? 'active' : ''} onClick={() => setShowGrid(!showGrid)} title="Raster ein/aus">
-          Raster
-        </button>
-        <button className={showAxes ? 'active' : ''} onClick={() => setShowAxes(!showAxes)} title="Achsen ein/aus">
-          Achsen
-        </button>
+        {!viewerMode && (
+          <>
+            <button className={showGrid ? 'active' : ''} onClick={() => setShowGrid(!showGrid)} title="Raster ein/aus">
+              Raster
+            </button>
+            <button className={showAxes ? 'active' : ''} onClick={() => setShowAxes(!showAxes)} title="Achsen ein/aus">
+              Achsen
+            </button>
+          </>
+        )}
         <button onClick={triggerResetView} disabled={!modelObject} title="Ansicht zurücksetzen">
           Reset
         </button>
@@ -120,7 +125,7 @@ export default function Toolbar({ onShare, onCalibrate }: Props) {
 
       <div className="spacer" />
 
-      {!calibrated && modelObject && (
+      {!viewerMode && !calibrated && modelObject && (
         <button
           className="badge warn"
           style={{ border: 'none', cursor: 'pointer' }}
@@ -130,19 +135,21 @@ export default function Toolbar({ onShare, onCalibrate }: Props) {
           unkalibriert – kalibrieren
         </button>
       )}
-      {calibrated && <span className="badge ok">kalibriert</span>}
-      {readonly && <span className="badge ok">Read-only</span>}
+      {!viewerMode && calibrated && <span className="badge ok">kalibriert</span>}
+      {viewerMode ? <span className="badge ok">🚶 Viewer</span> : readonly && <span className="badge ok">Read-only</span>}
 
       <div className="divider" />
 
       <div className="group">
-        <button
-          className="ghost"
-          onClick={() => fileInput.current?.click()}
-          title="STL, OBJ(+MTL+Texturen), GLB/GLTF, PLY, Punktwolken (PLY/PCD/XYZ)"
-        >
-          Datei öffnen
-        </button>
+        {!viewerMode && (
+          <button
+            className="ghost"
+            onClick={() => fileInput.current?.click()}
+            title="STL, OBJ(+MTL+Texturen), GLB/GLTF, PLY, Punktwolken (PLY/PCD/XYZ)"
+          >
+            Datei öffnen
+          </button>
+        )}
         {!readonly && (
           <button className="ghost" onClick={onShare} disabled={!modelObject}>
             Teilen

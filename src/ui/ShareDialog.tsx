@@ -42,6 +42,7 @@ export default function ShareDialog({ onClose }: { onClose: () => void }) {
   const [modelUrl, setModelUrl] = useState(initialUrl);
   const [pin, setPin] = useState('');
   const [readonly, setReadonly] = useState(false);
+  const [viewer, setViewer] = useState(false);
   const [withCalibration, setWithCalibration] = useState(true);
   const [withAlignment, setWithAlignment] = useState(true);
 
@@ -137,8 +138,9 @@ export default function ShareDialog({ onClose }: { onClose: () => void }) {
         sf: withCalibration ? scaleFactor : 1,
         u: withCalibration ? unit : 'm',
         cal: withCalibration ? calibrated : false,
-        ro: readonly,
+        ro: readonly || viewer,
       };
+      if (viewer) setup.v = true;
       if (withAlignment && alignApplied) {
         setup.q = alignQuaternion;
         setup.o = alignOffset;
@@ -264,9 +266,23 @@ export default function ShareDialog({ onClose }: { onClose: () => void }) {
           Ausrichtung mitgeben {alignApplied ? '' : '(noch nicht ausgerichtet)'}
         </label>
         <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 6 }}>
-          <input type="checkbox" checked={readonly} onChange={(e) => setReadonly(e.target.checked)} />
+          <input
+            type="checkbox"
+            checked={readonly}
+            disabled={viewer}
+            onChange={(e) => setReadonly(e.target.checked)}
+          />
           Nur ansehen + messen (kein Bearbeiten)
         </label>
+        <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 6 }}>
+          <input type="checkbox" checked={viewer} onChange={(e) => setViewer(e.target.checked)} />
+          🚶 Nur-Viewer: begehbares Haus, nur Ansehen + Messen (minimale Oberfläche)
+        </label>
+        {viewer && (
+          <div className="small muted" style={{ marginLeft: 26, marginTop: 2 }}>
+            Der Kunde öffnet den Link und kann den Scan von allen Seiten ansehen, durchlaufen und darin messen — sonst nichts.
+          </div>
+        )}
         <div className="field" style={{ marginTop: 10 }}>
           <label>Zugangscode für den Kunden (optional)</label>
           <input value={pin} onChange={(e) => setPin(e.target.value)} placeholder="z. B. 4-stelliger PIN" inputMode="numeric" />

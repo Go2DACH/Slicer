@@ -1,4 +1,4 @@
-import type { Wall, Opening, SketchLine, SketchCircle } from '../types';
+import type { Wall, Opening, SketchLine, SketchCircle, Vec3 } from '../types';
 
 /**
  * Minimal AutoCAD R12 (AC1009) ASCII DXF writer.
@@ -106,6 +106,7 @@ const LAYERS = [
   { name: 'WALLS_CENTER', color: 8 }, // gray
   { name: 'OPENINGS', color: 1 }, // red
   { name: 'DIMS', color: 3 }, // green
+  { name: 'GRUNDSTUECK', color: 30 }, // orange (property boundary)
 ];
 
 /** Map world (x, z) → DXF (x, y) in real units. */
@@ -118,12 +119,17 @@ export function buildFloorPlanDxf(
   walls: Wall[],
   openings: Opening[],
   scaleFactor: number,
-  options: { includeDims?: boolean; unit?: string } = {},
+  options: { includeDims?: boolean; unit?: string; boundary?: Vec3[] } = {},
 ): string {
   const includeDims = options.includeDims ?? true;
   const unit = options.unit ?? 'm';
   const dxf = new DxfBuilder();
   const s = scaleFactor;
+
+  // Property boundary (closed polyline) on its own layer.
+  if (options.boundary && options.boundary.length >= 3) {
+    dxf.polyline('GRUNDSTUECK', options.boundary.map((p) => mapPoint(p[0], p[2], s)), true);
+  }
 
   for (const wall of walls) {
     const sx = wall.start[0];
