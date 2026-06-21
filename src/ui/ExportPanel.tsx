@@ -6,6 +6,7 @@ import { exportJson, exportGlb, downloadText, downloadBlob } from '../lib/export
 export default function ExportPanel() {
   const walls = useStore((s) => s.walls);
   const openings = useStore((s) => s.openings);
+  const boundary = useStore((s) => s.boundary);
   const scaleFactor = useStore((s) => s.scaleFactor);
   const unit = useStore((s) => s.unit);
   const calibrated = useStore((s) => s.calibrated);
@@ -13,15 +14,16 @@ export default function ExportPanel() {
   const [busy, setBusy] = useState(false);
 
   const baseName = fileName.replace(/\.[^.]+$/, '') || 'grundriss';
-  const hasBim = walls.length > 0;
+  const hasBoundary = boundary.length >= 3;
+  const hasBim = walls.length > 0 || hasBoundary;
 
   const exportDxf = () => {
-    const dxf = buildFloorPlanDxf(walls, openings, scaleFactor, { includeDims: true, unit });
+    const dxf = buildFloorPlanDxf(walls, openings, scaleFactor, { includeDims: true, unit, boundary });
     downloadText(dxf, `${baseName}.dxf`, 'application/dxf');
   };
 
   const exportJsonFile = () => {
-    const json = exportJson(walls, openings, scaleFactor, unit, calibrated);
+    const json = exportJson(walls, openings, scaleFactor, unit, calibrated, boundary);
     downloadText(json, `${baseName}.json`, 'application/json');
   };
 
@@ -64,7 +66,7 @@ export default function ExportPanel() {
             <button onClick={exportJsonFile} disabled={!hasBim}>
               JSON
             </button>
-            <button onClick={exportGlbFile} disabled={!hasBim || busy}>
+            <button onClick={exportGlbFile} disabled={walls.length === 0 || busy}>
               {busy ? 'GLB …' : 'GLB'}
             </button>
           </div>

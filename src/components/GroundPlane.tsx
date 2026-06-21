@@ -15,6 +15,7 @@ export default function GroundPlane() {
   const walls = useStore((s) => s.walls);
   const rooms = useStore((s) => s.rooms);
   const pendingWallPoints = useStore((s) => s.pendingWallPoints);
+  const pendingBoundary = useStore((s) => s.pendingBoundary);
   const drawSettings = useStore((s) => s.drawSettings);
   const openingPlaceType = useStore((s) => s.openingPlaceType);
   const drawTool = useStore((s) => s.drawTool);
@@ -48,7 +49,8 @@ export default function GroundPlane() {
     return snapDrawPoint([x, 0, z], {
       walls,
       rooms,
-      pendingWallPoints,
+      // The boundary tool reuses the chain snapping/closing logic.
+      pendingWallPoints: drawTool === 'boundary' ? pendingBoundary : pendingWallPoints,
       drawSettings,
       maxDim,
       metersPerRaw,

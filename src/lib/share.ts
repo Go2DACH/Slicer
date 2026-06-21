@@ -21,6 +21,8 @@ export interface ShareSetup {
   o?: Vec3;
   /** Read-only (true = only view + measure). */
   ro: boolean;
+  /** Viewer mode: minimal UI — only orbit, walkthrough and measuring. */
+  v?: boolean;
   /** SHA-256 hex of the access PIN, if set. */
   p?: string;
 }

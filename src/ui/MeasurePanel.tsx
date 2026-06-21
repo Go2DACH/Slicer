@@ -15,13 +15,17 @@ export default function MeasurePanel({ onCalibrate }: { onCalibrate: () => void 
   const cancelPending = useStore((s) => s.cancelPending);
   const pending = useStore((s) => s.pendingPoints.length);
   const calibrated = useStore((s) => s.calibrated);
+  const viewerMode = useStore((s) => s.viewerMode);
+
+  // In viewer mode the scale is pre-set by the owner — hide calibration.
+  const tools = viewerMode ? TOOLS.filter((t) => t.id !== 'calibrate') : TOOLS;
 
   return (
     <div>
       <h3>Werkzeug</h3>
       <div className="card">
         <div className="row" style={{ flexWrap: 'wrap', gap: 4 }}>
-          {TOOLS.map((t) => (
+          {tools.map((t) => (
             <button
               key={t.id}
               className={measureTool === t.id ? 'active' : ''}

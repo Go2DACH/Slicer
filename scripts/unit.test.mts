@@ -61,6 +61,12 @@ ok('dxf ends with EOF', dxf.trim().endsWith('EOF'));
 const dxf2 = buildFloorPlanDxf(walls, openings, 0.5, { includeDims: true });
 ok('dxf scaled dim 2.00', dxf2.includes('2.00 m'));
 
+// DXF property boundary -> GRUNDSTUECK layer + closed polyline
+const boundary: [number, number, number][] = [[0, 0, 0], [10, 0, 0], [10, 0, 8], [0, 0, 8]];
+const dxfB = buildFloorPlanDxf(walls, openings, 1, { boundary });
+ok('dxf has GRUNDSTUECK layer', dxfB.includes('GRUNDSTUECK'));
+ok('dxf without boundary omits GRUNDSTUECK polyline', !buildFloorPlanDxf(walls, openings, 1).includes('\n8\nGRUNDSTUECK\n'));
+
 // 2D sketch DXF: line + circle, scaled
 const sketchLines: SketchLine[] = [{ id: 'l1', a: [0, 0, 0], b: [2, 0, 0] }];
 const sketchCircles: SketchCircle[] = [{ id: 'c1', center: [1, 0, 1], r: 0.5 }];

@@ -3,7 +3,7 @@ import * as THREE from 'three';
 import { Line, Html } from '@react-three/drei';
 import { useStore } from '../store';
 import { buildBimGroup } from '../lib/bimGeometry';
-import { rawDistance, midpoint, containedPolygons, netRawArea } from '../lib/geometry';
+import { rawDistance, midpoint, containedPolygons, netRawArea, rawPolygonArea, rawPolylineLength } from '../lib/geometry';
 import { formatLength, formatArea } from '../lib/units';
 import type { Vec3, Wall, Opening, Room } from '../types';
 
@@ -152,6 +152,8 @@ export default function BimOverlay() {
   const walls = useStore((s) => s.walls);
   const openings = useStore((s) => s.openings);
   const rooms = useStore((s) => s.rooms);
+  const boundary = useStore((s) => s.boundary);
+  const pendingBoundary = useStore((s) => s.pendingBoundary);
   const scaleFactor = useStore((s) => s.scaleFactor);
   const unit = useStore((s) => s.unit);
   const mode = useStore((s) => s.mode);
@@ -201,19 +203,20 @@ export default function BimOverlay() {
     }
   };
 
+  const chain = drawTool === 'boundary' ? pendingBoundary : pendingWallPoints;
   const pendingLine: Vec3[] | null = useMemo(() => {
-    if (mode !== 'draw' || pendingWallPoints.length === 0 || openingPlaceType) return null;
+    if (mode !== 'draw' || chain.length === 0 || openingPlaceType) return null;
     // Rectangle preview: outline from the first corner to the cursor.
     if (drawTool === 'rect') {
       if (!hoverPoint) return null;
-      const a = pendingWallPoints[0];
+      const a = chain[0];
       const p = hoverPoint;
       return [a, [p[0], 0, a[2]], [p[0], 0, p[2]], [a[0], 0, p[2]], a];
     }
-    const pts = [...pendingWallPoints];
+    const pts = [...chain];
     if (hoverPoint) pts.push([hoverPoint[0], hoverPoint[1], hoverPoint[2]]);
     return pts.length >= 2 ? pts : null;
-  }, [mode, pendingWallPoints, hoverPoint, openingPlaceType, drawTool]);
+  }, [mode, chain, hoverPoint, openingPlaceType, drawTool]);
 
   const wallById = (id: string) => walls.find((w) => w.id === id);
 
@@ -229,6 +232,35 @@ export default function BimOverlay() {
       {rooms.map((r) => (
         <RoomFill key={r.id} room={r} allRooms={rooms} selected={selectedRoomId === r.id} selectable={!drawingActive} />
       ))}
+
+      {/* property boundary (Grundstücksgrenze): closed dashed ring + size label */}
+      {boundary.length >= 3 &&
+        (() => {
+          const ring = boundary.map((p) => new THREE.Vector3(p[0], FLOOR_Y, p[2]));
+          ring.push(ring[0].clone());
+          const perim = rawPolylineLength([...boundary, boundary[0]]);
+          const area = rawPolygonArea(boundary);
+          const c = boundary.reduce((acc, p) => [acc[0] + p[0], 0, acc[2] + p[2]] as Vec3, [0, 0, 0] as Vec3);
+          const centroid: Vec3 = [c[0] / boundary.length, 0.06, c[2] / boundary.length];
+          return (
+            <group>
+              <Line points={ring} color="#ff9f43" lineWidth={2.5} dashed dashSize={0.4} gapSize={0.2} depthTest={false} />
+              {boundary.map((p, i) => {
+                const q = boundary[(i + 1) % boundary.length];
+                return (
+                  <Html key={i} position={midpoint(p, q)} center style={{ pointerEvents: 'none' }} zIndexRange={[30, 0]}>
+                    <div className="measure-label">{formatLength(rawDistance(p, q), scaleFactor, unit)}</div>
+                  </Html>
+                );
+              })}
+              <Html position={centroid} center style={{ pointerEvents: 'none' }} zIndexRange={[20, 0]}>
+                <div className="measure-label area">
+                  Grundstück: {formatArea(area, scaleFactor, unit)} · Umfang {formatLength(perim, scaleFactor, unit)}
+                </div>
+              </Html>
+            </group>
+          );
+        })()}
 
       {/* selection outline */}
       {selectedWallId &&

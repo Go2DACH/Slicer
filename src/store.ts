@@ -32,6 +32,7 @@ interface HistorySnapshot {
   rooms: Room[];
   sketchLines: SketchLine[];
   sketchCircles: SketchCircle[];
+  boundary: Vec3[];
 }
 
 interface AppState {
@@ -56,6 +57,8 @@ interface AppState {
   showGrid: boolean;
   showAxes: boolean;
   readonly: boolean;
+  /** Viewer mode: stripped-down UI (orbit + walkthrough + measure only). */
+  viewerMode: boolean;
   resetViewToken: number;
   /** First-person walkthrough navigation. */
   walkMode: boolean;
@@ -113,10 +116,14 @@ interface AppState {
   openingPlaceType: 'door' | 'window' | null;
   /** Reverse opening direction for the next placed opening. */
   openingFlip: boolean;
-  /** Drawing tool: walls (polyline), rectangle room, or off (select/inspect). */
-  drawTool: 'wall' | 'rect' | 'off';
+  /** Drawing tool: walls, rectangle room, property boundary, or off. */
+  drawTool: 'wall' | 'rect' | 'boundary' | 'off';
   /** Which kind of drawing is active (null = ask the user). */
   drawKind: DrawKind | null;
+  /** Closed property-boundary ring (Grundstücksgrenze); empty = none. */
+  boundary: Vec3[];
+  /** In-progress boundary points before the ring is closed. */
+  pendingBoundary: Vec3[];
 
   // ---- 2D sketch ----
   sketchLines: SketchLine[];
@@ -194,8 +201,10 @@ interface AppState {
   selectRoom: (id: string | null) => void;
   setOpeningPlaceType: (t: 'door' | 'window' | null) => void;
   setOpeningFlip: (v: boolean) => void;
-  setDrawTool: (t: 'wall' | 'rect' | 'off') => void;
+  setDrawTool: (t: 'wall' | 'rect' | 'boundary' | 'off') => void;
   setDrawKind: (k: DrawKind | null) => void;
+  finishBoundary: () => void;
+  clearBoundary: () => void;
   setDrawSettings: (patch: Partial<DrawSettings>) => void;
   setCameraView: (v: CameraView) => void;
 
@@ -249,6 +258,7 @@ export const useStore = create<AppState>((set, get) => ({
   showGrid: true,
   showAxes: true,
   readonly: false,
+  viewerMode: false,
   resetViewToken: 0,
   walkMode: false,
   panelOpen: typeof window !== 'undefined' && window.innerWidth < 1024 ? false : true,
@@ -287,6 +297,8 @@ export const useStore = create<AppState>((set, get) => ({
   openingFlip: false,
   drawTool: 'wall',
   drawKind: null,
+  boundary: [],
+  pendingBoundary: [],
 
   sketchLines: [],
   sketchCircles: [],
@@ -313,6 +325,8 @@ export const useStore = create<AppState>((set, get) => ({
       openings: [],
       rooms: [],
       pendingWallPoints: [],
+      boundary: [],
+      pendingBoundary: [],
       sketchLines: [],
       sketchCircles: [],
       pendingSketch: [],
@@ -340,7 +354,10 @@ export const useStore = create<AppState>((set, get) => ({
       alignQuaternion: s.q ?? [0, 0, 0, 1],
       alignOffset: s.o ?? [0, 0, 0],
       alignApplied: !!s.q,
-      readonly: !!s.ro,
+      readonly: !!s.ro || !!s.v,
+      viewerMode: !!s.v,
+      // Viewer links open straight into a walkable, measure-only experience.
+      mode: s.v ? 'view' : get().mode,
       pinHash: s.p ?? null,
       locked: !!s.p,
     });
@@ -428,7 +445,14 @@ export const useStore = create<AppState>((set, get) => ({
   },
 
   cancelPending: () =>
-    set({ pendingPoints: [], calibratePoints: [], alignPoints: [], pendingWallPoints: [], openingPlaceType: null }),
+    set({
+      pendingPoints: [],
+      calibratePoints: [],
+      alignPoints: [],
+      pendingWallPoints: [],
+      pendingBoundary: [],
+      openingPlaceType: null,
+    }),
 
   removeMeasurement: (id) => {
     get().pushHistory();
@@ -470,8 +494,10 @@ export const useStore = create<AppState>((set, get) => ({
       rooms: get().rooms.map((r) => ({ ...r, points: r.points.map(fn) })),
       sketchLines: get().sketchLines.map((l) => ({ ...l, a: fn(l.a), b: fn(l.b) })),
       sketchCircles: get().sketchCircles.map((c) => ({ ...c, center: fn(c.center) })),
+      boundary: get().boundary.map(fn),
       pendingPoints: get().pendingPoints.map(fn),
       pendingWallPoints: get().pendingWallPoints.map(fn),
+      pendingBoundary: get().pendingBoundary.map(fn),
     });
   },
   addAlignPoint: (p) => {
@@ -493,6 +519,26 @@ export const useStore = create<AppState>((set, get) => ({
       thickness: ds.wallThickness,
       height: ds.wallHeight,
     });
+
+    // Property boundary: a closed ring drawn point by point; tapping the first
+    // point (>=3 placed) closes the Grundstücksgrenze. No walls are created.
+    if (get().drawTool === 'boundary') {
+      const ring = get().pendingBoundary;
+      if (ring.length === 0) {
+        set({ pendingBoundary: [p] });
+        return;
+      }
+      const last = ring[ring.length - 1];
+      if (Math.hypot(last[0] - p[0], last[2] - p[2]) < 1e-7) return;
+      const first = ring[0];
+      if (ring.length >= 3 && Math.hypot(first[0] - p[0], first[2] - p[2]) < 1e-5) {
+        get().pushHistory();
+        set({ boundary: ring.map((c) => [...c] as Vec3), pendingBoundary: [] });
+      } else {
+        set({ pendingBoundary: [...ring, p] });
+      }
+      return;
+    }
 
     // Rectangle tool: first tap = one corner, second tap = opposite corner.
     if (get().drawTool === 'rect') {
@@ -638,7 +684,20 @@ export const useStore = create<AppState>((set, get) => ({
   selectRoom: (id) => set({ selectedRoomId: id, selectedWallId: null, selectedOpeningId: null }),
   setOpeningPlaceType: (t) => set({ openingPlaceType: t }),
   setOpeningFlip: (v) => set({ openingFlip: v }),
-  setDrawTool: (t) => set({ drawTool: t, pendingWallPoints: [] }),
+  setDrawTool: (t) => set({ drawTool: t, pendingWallPoints: [], pendingBoundary: [] }),
+  finishBoundary: () => {
+    const ring = get().pendingBoundary;
+    if (ring.length < 3) {
+      set({ pendingBoundary: [] });
+      return;
+    }
+    get().pushHistory();
+    set({ boundary: ring.map((c) => [...c] as Vec3), pendingBoundary: [] });
+  },
+  clearBoundary: () => {
+    get().pushHistory();
+    set({ boundary: [], pendingBoundary: [] });
+  },
   setDrawKind: (k) =>
     set({ drawKind: k, pendingWallPoints: [], pendingSketch: [], openingPlaceType: null, panelOpen: k ? true : get().panelOpen }),
   setDrawSettings: (patch) => set({ drawSettings: { ...get().drawSettings, ...patch } }),
@@ -727,7 +786,7 @@ export const useStore = create<AppState>((set, get) => ({
   },
 
   pushHistory: () => {
-    const { measurements, walls, openings, rooms, sketchLines, sketchCircles, history } = get();
+    const { measurements, walls, openings, rooms, sketchLines, sketchCircles, boundary, history } = get();
     const snap: HistorySnapshot = {
       measurements: measurements.map((m) => ({ ...m, points: m.points.map((p) => [...p] as Vec3) })),
       walls: walls.map((w) => ({ ...w })),
@@ -735,6 +794,7 @@ export const useStore = create<AppState>((set, get) => ({
       rooms: rooms.map((r) => ({ ...r, points: r.points.map((p) => [...p] as Vec3) })),
       sketchLines: sketchLines.map((l) => ({ ...l })),
       sketchCircles: sketchCircles.map((c) => ({ ...c })),
+      boundary: boundary.map((p) => [...p] as Vec3),
     };
     set({ history: [...history.slice(-49), snap] });
   },
@@ -749,9 +809,11 @@ export const useStore = create<AppState>((set, get) => ({
       rooms: last.rooms,
       sketchLines: last.sketchLines,
       sketchCircles: last.sketchCircles,
+      boundary: last.boundary,
       history: history.slice(0, -1),
       pendingPoints: [],
       pendingWallPoints: [],
+      pendingBoundary: [],
       pendingSketch: [],
     });
   },
