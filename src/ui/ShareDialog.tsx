@@ -2,13 +2,17 @@ import { useCallback, useMemo, useState } from 'react';
 import { useStore } from '../store';
 import { encodeShare, sha256Hex, type ShareSetup } from '../lib/share';
 import {
-  loadGithubConfig,
-  saveGithubConfig,
-  uploadScanToRelease,
-  listReleaseAssets,
-  deleteReleaseAsset,
-  type GithubConfig,
-  type ReleaseAsset,
+  loadToken,
+  saveToken,
+  clearToken,
+  configFor,
+  verifyToken,
+  uploadScan,
+  listScans,
+  deleteScan,
+  type ScanFile,
+  SCAN_OWNER,
+  SCAN_REPO,
 } from '../lib/github';
 
 function fmtSize(bytes: number): string {
@@ -33,25 +37,23 @@ export default function ShareDialog({ onClose }: { onClose: () => void }) {
   const alignOffset = useStore((s) => s.alignOffset);
   const alignApplied = useStore((s) => s.alignApplied);
 
-  // Prefill the model URL from the current link, if any.
-  const initialUrl = useMemo(() => {
-    const params = new URLSearchParams(window.location.search);
-    return params.get('model') ?? '';
-  }, []);
+  const initialUrl = useMemo(() => new URLSearchParams(window.location.search).get('model') ?? '', []);
 
   const [modelUrl, setModelUrl] = useState(initialUrl);
   const [pin, setPin] = useState('');
   const [readonly, setReadonly] = useState(false);
-  const [viewer, setViewer] = useState(false);
+  const [viewer, setViewer] = useState(true);
   const [withCalibration, setWithCalibration] = useState(true);
   const [withAlignment, setWithAlignment] = useState(true);
 
-  // GitHub release upload config (owner token stored locally, never shared).
-  const saved = useMemo(() => loadGithubConfig(), []);
-  const [owner, setOwner] = useState(saved.owner ?? 'go2dach');
-  const [repo, setRepo] = useState(saved.repo ?? 'Slicer');
-  const [tag, setTag] = useState(saved.tag ?? 'scans');
-  const [token, setToken] = useState(saved.token ?? '');
+  // GitHub connection: only a fine-grained token is needed (stored locally,
+  // never shared). Owner/repo/branch are fixed in github.ts.
+  const [token, setToken] = useState(loadToken());
+  const [tokenDraft, setTokenDraft] = useState('');
+  const [connecting, setConnecting] = useState(false);
+  const [connectErr, setConnectErr] = useState<string | null>(null);
+  const connected = token.trim() !== '';
+
   const [uploading, setUploading] = useState(false);
   const [progress, setProgress] = useState(0);
   const [uploadErr, setUploadErr] = useState<string | null>(null);
@@ -60,67 +62,83 @@ export default function ShareDialog({ onClose }: { onClose: () => void }) {
   const [building, setBuilding] = useState(false);
   const [copied, setCopied] = useState<string | null>(null);
 
-  // Uploaded scans (for managing / deleting old files).
-  const [assets, setAssets] = useState<ReleaseAsset[] | null>(null);
+  const [scans, setScans] = useState<ScanFile[] | null>(null);
   const [listBusy, setListBusy] = useState(false);
-  const [deleting, setDeleting] = useState<number | null>(null);
+  const [deleting, setDeleting] = useState<string | null>(null);
+  const [showAdvanced, setShowAdvanced] = useState(false);
 
-  const currentCfg = useCallback((): GithubConfig | null => {
-    if (!owner.trim() || !repo.trim() || !tag.trim() || !token.trim()) return null;
-    return { owner: owner.trim(), repo: repo.trim(), tag: tag.trim(), token: token.trim() };
-  }, [owner, repo, tag, token]);
-
-  const refreshAssets = useCallback(async () => {
-    const cfg = currentCfg();
-    if (!cfg) {
-      setUploadErr('Bitte Owner, Repo, Tag und Token ausfüllen, um die Dateien zu laden.');
-      return;
-    }
-    setUploadErr(null);
-    setListBusy(true);
+  const connect = async () => {
+    const t = tokenDraft.trim();
+    if (!t) return;
+    setConnecting(true);
+    setConnectErr(null);
     try {
-      setAssets(await listReleaseAssets(cfg));
+      if (await verifyToken(t)) {
+        saveToken(t);
+        setToken(t);
+        setTokenDraft('');
+      } else {
+        setConnectErr(`Token ungültig oder ohne Zugriff auf ${SCAN_OWNER}/${SCAN_REPO}.`);
+      }
     } catch (e) {
-      setUploadErr(e instanceof Error ? e.message : String(e));
+      setConnectErr(e instanceof Error ? e.message : String(e));
     } finally {
-      setListBusy(false);
-    }
-  }, [currentCfg]);
-
-  const removeAsset = async (a: ReleaseAsset) => {
-    const cfg = currentCfg();
-    if (!cfg) return;
-    if (!window.confirm(`„${a.name}“ wirklich löschen? Bestehende Links auf diese Datei funktionieren danach nicht mehr.`))
-      return;
-    setDeleting(a.id);
-    try {
-      await deleteReleaseAsset(cfg, a.id);
-      setAssets((prev) => (prev ? prev.filter((x) => x.id !== a.id) : prev));
-    } catch (e) {
-      setUploadErr(e instanceof Error ? e.message : String(e));
-    } finally {
-      setDeleting(null);
+      setConnecting(false);
     }
   };
 
+  const disconnect = () => {
+    clearToken();
+    setToken('');
+    setScans(null);
+  };
+
+  const buildLink = useCallback(
+    async (urlOverride?: string) => {
+      const trimmed = (urlOverride ?? modelUrl).trim();
+      if (!trimmed) return;
+      setBuilding(true);
+      try {
+        const setup: ShareSetup = {
+          m: trimmed,
+          sf: withCalibration ? scaleFactor : 1,
+          u: withCalibration ? unit : 'm',
+          cal: withCalibration ? calibrated : false,
+          ro: readonly || viewer,
+        };
+        if (viewer) setup.v = true;
+        if (withAlignment && alignApplied) {
+          setup.q = alignQuaternion;
+          setup.o = alignOffset;
+        }
+        if (pin.trim()) setup.p = await sha256Hex(pin.trim());
+        const url = new URL(baseAppUrl());
+        url.searchParams.set('s', encodeShare(setup));
+        setLink(url.toString());
+      } finally {
+        setBuilding(false);
+      }
+    },
+    [modelUrl, withCalibration, scaleFactor, unit, calibrated, readonly, viewer, withAlignment, alignApplied, alignQuaternion, alignOffset, pin],
+  );
+
   const upload = async () => {
     if (!sourceFile) {
-      setUploadErr('Keine lokale Scan-Datei vorhanden. Lade den Scan zuerst in den Viewer.');
+      setUploadErr('Kein Scan geladen. Lade den Scan zuerst in den Viewer.');
       return;
     }
-    if (!owner || !repo || !tag || !token) {
-      setUploadErr('Bitte Owner, Repo, Tag und Token ausfüllen.');
+    if (!connected) {
+      setUploadErr('Bitte zuerst mit GitHub verbinden.');
       return;
     }
-    const cfg: GithubConfig = { owner: owner.trim(), repo: repo.trim(), tag: tag.trim(), token: token.trim() };
-    saveGithubConfig(cfg);
     setUploadErr(null);
     setUploading(true);
     setProgress(0);
     try {
-      const url = await uploadScanToRelease(sourceFile, cfg, (f) => setProgress(f));
+      const url = await uploadScan(sourceFile, configFor(token), setProgress);
       setModelUrl(url);
-      void refreshAssets();
+      await buildLink(url); // produce the link right away
+      void refreshScans();
     } catch (e) {
       setUploadErr(e instanceof Error ? e.message : String(e));
     } finally {
@@ -128,29 +146,30 @@ export default function ShareDialog({ onClose }: { onClose: () => void }) {
     }
   };
 
-  const buildLink = async () => {
-    const trimmed = modelUrl.trim();
-    if (!trimmed) return;
-    setBuilding(true);
+  const refreshScans = useCallback(async () => {
+    if (!connected) return;
+    setListBusy(true);
+    setUploadErr(null);
     try {
-      const setup: ShareSetup = {
-        m: trimmed,
-        sf: withCalibration ? scaleFactor : 1,
-        u: withCalibration ? unit : 'm',
-        cal: withCalibration ? calibrated : false,
-        ro: readonly || viewer,
-      };
-      if (viewer) setup.v = true;
-      if (withAlignment && alignApplied) {
-        setup.q = alignQuaternion;
-        setup.o = alignOffset;
-      }
-      if (pin.trim()) setup.p = await sha256Hex(pin.trim());
-      const url = new URL(baseAppUrl());
-      url.searchParams.set('s', encodeShare(setup));
-      setLink(url.toString());
+      setScans(await listScans(configFor(token)));
+    } catch (e) {
+      setUploadErr(e instanceof Error ? e.message : String(e));
     } finally {
-      setBuilding(false);
+      setListBusy(false);
+    }
+  }, [connected, token]);
+
+  const removeScan = async (f: ScanFile) => {
+    if (!window.confirm(`„${f.name}“ wirklich löschen? Bestehende Links auf diese Datei funktionieren danach nicht mehr.`))
+      return;
+    setDeleting(f.sha);
+    try {
+      await deleteScan(configFor(token), f.name, f.sha);
+      setScans((prev) => (prev ? prev.filter((x) => x.sha !== f.sha) : prev));
+    } catch (e) {
+      setUploadErr(e instanceof Error ? e.message : String(e));
+    } finally {
+      setDeleting(null);
     }
   };
 
@@ -174,89 +193,116 @@ export default function ShareDialog({ onClose }: { onClose: () => void }) {
       <div className="dialog" onClick={(e) => e.stopPropagation()}>
         <h2>Scan teilen</h2>
         <p className="small muted" style={{ marginTop: 0 }}>
-          Lade den Scan hoch und erzeuge einen Link. Kalibrierung und Ausrichtung werden mitgegeben, damit der Kunde sie
-          nicht selbst machen muss — alle anderen Funktionen (messen, zeichnen, exportieren) bleiben verfügbar.
+          Scan hochladen und Link erzeugen. Kalibrierung und Ausrichtung werden mitgegeben — der Kunde muss nichts
+          einstellen.
         </p>
 
-        <h3>1 · Scan hochladen (GitHub Release)</h3>
-        <p className="small muted" style={{ marginTop: 0 }}>
-          Einmalig: Fine-grained Token mit <b>Contents: Read&nbsp;and&nbsp;write</b> für das Repo. Der Token bleibt nur auf
-          diesem Gerät gespeichert und wird nie im Link weitergegeben.
-        </p>
-        <div className="field-row">
-          <div className="field">
-            <label>Owner</label>
-            <input value={owner} onChange={(e) => setOwner(e.target.value)} placeholder="go2dach" />
+        {/* 1 · GitHub connection (one-time) */}
+        {!connected ? (
+          <div className="card">
+            <h3 style={{ marginTop: 0 }}>Einmal mit GitHub verbinden</h3>
+            <p className="small muted" style={{ marginTop: 0 }}>
+              Erstelle einen <b>Fine-grained Token</b> mit <b>Contents: Read and write</b> für{' '}
+              <span className="mono">{SCAN_OWNER}/{SCAN_REPO}</span>. Er bleibt nur auf diesem Gerät und wird nie im Link
+              weitergegeben.{' '}
+              <a href="https://github.com/settings/tokens?type=beta" target="_blank" rel="noopener noreferrer">
+                Token erstellen ↗
+              </a>
+            </p>
+            <div className="row">
+              <input
+                value={tokenDraft}
+                onChange={(e) => setTokenDraft(e.target.value)}
+                type="password"
+                placeholder="github_pat_…"
+                onKeyDown={(e) => e.key === 'Enter' && connect()}
+              />
+              <button className="active" onClick={connect} disabled={connecting || !tokenDraft.trim()}>
+                {connecting ? 'Prüfe …' : 'Verbinden'}
+              </button>
+            </div>
+            {connectErr && (
+              <div className="small" style={{ color: 'var(--danger, #e5484d)', marginTop: 8, wordBreak: 'break-word' }}>
+                {connectErr}
+              </div>
+            )}
           </div>
-          <div className="field">
-            <label>Repo</label>
-            <input value={repo} onChange={(e) => setRepo(e.target.value)} placeholder="Slicer" />
-          </div>
-          <div className="field">
-            <label>Release-Tag</label>
-            <input value={tag} onChange={(e) => setTag(e.target.value)} placeholder="scans" />
-          </div>
-        </div>
-        <div className="field" style={{ marginTop: 8 }}>
-          <label>Token (ghp_… / github_pat_…)</label>
-          <input value={token} onChange={(e) => setToken(e.target.value)} type="password" placeholder="github_pat_…" />
-        </div>
-        <div className="row" style={{ marginTop: 10 }}>
-          <button className="active" onClick={upload} disabled={uploading || !sourceFile}>
-            {uploading ? `Lädt … ${Math.round(progress * 100)} %` : sourceFile ? `„${sourceFile.name}“ hochladen` : 'Kein Scan geladen'}
-          </button>
-        </div>
-        {uploading && (
-          <div className="progress" style={{ marginTop: 8 }}>
-            <div style={{ width: `${Math.round(progress * 100)}%` }} />
-          </div>
-        )}
-        {uploadErr && (
-          <div className="small" style={{ color: 'var(--danger, #e5484d)', marginTop: 8, wordBreak: 'break-word' }}>
-            {uploadErr}
+        ) : (
+          <div className="card" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span className="badge ok">✓ Mit GitHub verbunden</span>
+            <div className="spacer" style={{ flex: 1 }} />
+            <button className="icon-btn" onClick={disconnect} title="Token entfernen">
+              Trennen
+            </button>
           </div>
         )}
 
-        <div className="row" style={{ marginTop: 10 }}>
-          <button onClick={refreshAssets} disabled={listBusy}>
-            {listBusy ? 'Lädt …' : 'Hochgeladene Scans anzeigen'}
-          </button>
-        </div>
-        {assets && (
-          <div className="card" style={{ marginTop: 8 }}>
-            {assets.length === 0 ? (
-              <div className="small muted">Noch keine Scans hochgeladen.</div>
-            ) : (
-              <ul style={{ listStyle: 'none', margin: 0, padding: 0 }}>
-                {assets.map((a) => (
-                  <li
-                    key={a.id}
-                    style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 0', borderBottom: '1px solid var(--border)' }}
-                  >
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div className="mono small" style={{ wordBreak: 'break-all' }}>{a.name}</div>
-                      <div className="small muted">{fmtSize(a.size)}</div>
-                    </div>
-                    <button onClick={() => setModelUrl(a.browser_download_url)} title="Diese Datei für den Link verwenden">
-                      Verwenden
-                    </button>
-                    <button className="danger" onClick={() => removeAsset(a)} disabled={deleting === a.id}>
-                      {deleting === a.id ? '…' : 'Löschen'}
-                    </button>
-                  </li>
-                ))}
-              </ul>
+        {/* 2 · Upload */}
+        {connected && (
+          <div className="card" style={{ marginTop: 12 }}>
+            <h3 style={{ marginTop: 0 }}>Scan hochladen</h3>
+            <button className="active" onClick={upload} disabled={uploading || !sourceFile}>
+              {uploading
+                ? `Lädt … ${Math.round(progress * 100)} %`
+                : sourceFile
+                  ? `„${sourceFile.name}“ hochladen & Link erzeugen`
+                  : 'Kein Scan geladen'}
+            </button>
+            {uploading && (
+              <div className="progress" style={{ marginTop: 8 }}>
+                <div style={{ width: `${Math.round(progress * 100)}%` }} />
+              </div>
+            )}
+            {uploadErr && (
+              <div className="small" style={{ color: 'var(--danger, #e5484d)', marginTop: 8, wordBreak: 'break-word' }}>
+                {uploadErr}
+              </div>
+            )}
+            <div className="row" style={{ marginTop: 10 }}>
+              <button onClick={refreshScans} disabled={listBusy}>
+                {listBusy ? 'Lädt …' : 'Hochgeladene Scans verwalten'}
+              </button>
+            </div>
+            {scans && (
+              <div style={{ marginTop: 8 }}>
+                {scans.length === 0 ? (
+                  <div className="small muted">Noch keine Scans hochgeladen.</div>
+                ) : (
+                  <ul style={{ listStyle: 'none', margin: 0, padding: 0 }}>
+                    {scans.map((f) => (
+                      <li
+                        key={f.sha}
+                        style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 0', borderBottom: '1px solid var(--border)' }}
+                      >
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div className="mono small" style={{ wordBreak: 'break-all' }}>{f.name}</div>
+                          <div className="small muted">{fmtSize(f.size)}</div>
+                        </div>
+                        <button onClick={() => { setModelUrl(f.url); void buildLink(f.url); }} title="Diese Datei für den Link verwenden">
+                          Verwenden
+                        </button>
+                        <button className="danger" onClick={() => removeScan(f)} disabled={deleting === f.sha}>
+                          {deleting === f.sha ? '…' : 'Löschen'}
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
             )}
           </div>
         )}
 
-        <h3 style={{ marginTop: 16 }}>2 · Modell-URL</h3>
-        <p className="small muted" style={{ marginTop: 0 }}>
-          Wird vom Upload automatisch gefüllt. Du kannst auch eine eigene, öffentlich erreichbare URL eintragen.
-        </p>
-        <input value={modelUrl} onChange={(e) => setModelUrl(e.target.value)} placeholder="https://…/scan.glb oder models/scan.glb" />
-
-        <h3 style={{ marginTop: 16 }}>3 · Optionen</h3>
+        {/* 3 · Options */}
+        <h3 style={{ marginTop: 16 }}>Optionen</h3>
+        <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 6 }}>
+          <input type="checkbox" checked={viewer} onChange={(e) => setViewer(e.target.checked)} />
+          🚶 Nur-Viewer: begehbares Haus, nur Ansehen + Messen (empfohlen für Kunden)
+        </label>
+        <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 6 }}>
+          <input type="checkbox" checked={readonly} disabled={viewer} onChange={(e) => setReadonly(e.target.checked)} />
+          Nur ansehen + messen (kein Bearbeiten)
+        </label>
         <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 6 }}>
           <input type="checkbox" checked={withCalibration} onChange={(e) => setWithCalibration(e.target.checked)} />
           Kalibrierung mitgeben {calibrated ? `(${scaleFactor.toPrecision(4)} ${unit}/Einheit)` : '(noch nicht kalibriert)'}
@@ -265,46 +311,47 @@ export default function ShareDialog({ onClose }: { onClose: () => void }) {
           <input type="checkbox" checked={withAlignment} onChange={(e) => setWithAlignment(e.target.checked)} />
           Ausrichtung mitgeben {alignApplied ? '' : '(noch nicht ausgerichtet)'}
         </label>
-        <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 6 }}>
-          <input
-            type="checkbox"
-            checked={readonly}
-            disabled={viewer}
-            onChange={(e) => setReadonly(e.target.checked)}
-          />
-          Nur ansehen + messen (kein Bearbeiten)
-        </label>
-        <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 6 }}>
-          <input type="checkbox" checked={viewer} onChange={(e) => setViewer(e.target.checked)} />
-          🚶 Nur-Viewer: begehbares Haus, nur Ansehen + Messen (minimale Oberfläche)
-        </label>
-        {viewer && (
-          <div className="small muted" style={{ marginLeft: 26, marginTop: 2 }}>
-            Der Kunde öffnet den Link und kann den Scan von allen Seiten ansehen, durchlaufen und darin messen — sonst nichts.
-          </div>
-        )}
         <div className="field" style={{ marginTop: 10 }}>
           <label>Zugangscode für den Kunden (optional)</label>
-          <input value={pin} onChange={(e) => setPin(e.target.value)} placeholder="z. B. 4-stelliger PIN" inputMode="numeric" />
-          <span className="small muted">
-            Einfache Zugangshürde (clientseitig), kein harter Schutz — die Modell-URL steckt technisch im Link.
-          </span>
+          <input value={pin} onChange={(e) => setPin(e.target.value)} placeholder="leer = sofortiger Zugang" inputMode="numeric" />
         </div>
 
-        <h3 style={{ marginTop: 16 }}>4 · Link erzeugen</h3>
-        <div className="row">
-          <button className="active" onClick={buildLink} disabled={!modelUrl.trim() || building}>
+        {/* 4 · Link */}
+        <h3 style={{ marginTop: 16 }}>Link</h3>
+        {link ? (
+          <>
+            <div className="row">
+              <input className="mono small" readOnly value={link} onFocus={(e) => e.target.select()} />
+              <button className="active" onClick={() => copy(link, 'link')}>
+                {copied === 'link' ? '✓ Kopiert' : 'Kopieren'}
+              </button>
+            </div>
+            <button style={{ marginTop: 8 }} onClick={() => buildLink()} disabled={!modelUrl.trim() || building}>
+              Mit aktuellen Optionen neu erzeugen
+            </button>
+          </>
+        ) : (
+          <button className="active" onClick={() => buildLink()} disabled={!modelUrl.trim() || building}>
             {building ? 'Erzeuge …' : 'Link erzeugen'}
           </button>
-        </div>
-        {link && (
-          <div className="row" style={{ marginTop: 10 }}>
-            <input className="mono small" readOnly value={link} onFocus={(e) => e.target.select()} />
-            <button className="active" onClick={() => copy(link, 'link')}>
-              {copied === 'link' ? '✓ Kopiert' : 'Kopieren'}
-            </button>
-          </div>
         )}
+
+        {/* Advanced: manual model URL */}
+        <div style={{ marginTop: 12 }}>
+          <button className="icon-btn" onClick={() => setShowAdvanced((v) => !v)}>
+            {showAdvanced ? '▾' : '▸'} Erweitert: eigene Modell-URL
+          </button>
+          {showAdvanced && (
+            <div className="field" style={{ marginTop: 8 }}>
+              <input
+                value={modelUrl}
+                onChange={(e) => setModelUrl(e.target.value)}
+                placeholder="https://…/scan.glb (CORS-fähig) oder models/scan.glb"
+              />
+              <span className="small muted">Wird vom Upload automatisch gesetzt. Eigene URL muss CORS erlauben.</span>
+            </div>
+          )}
+        </div>
 
         <div className="actions">
           <button onClick={onClose}>Schließen</button>
