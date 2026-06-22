@@ -202,13 +202,30 @@ export default function ShareDialog({ onClose }: { onClose: () => void }) {
           <div className="card">
             <h3 style={{ marginTop: 0 }}>Einmal mit GitHub verbinden</h3>
             <p className="small muted" style={{ marginTop: 0 }}>
-              Erstelle einen <b>Fine-grained Token</b> mit <b>Contents: Read and write</b> für{' '}
-              <span className="mono">{SCAN_OWNER}/{SCAN_REPO}</span>. Er bleibt nur auf diesem Gerät und wird nie im Link
-              weitergegeben.{' '}
-              <a href="https://github.com/settings/tokens?type=beta" target="_blank" rel="noopener noreferrer">
-                Token erstellen ↗
-              </a>
+              Einmaliger Zugangsschlüssel (Token). Er bleibt nur auf diesem Gerät und wird nie im Link weitergegeben. So
+              erstellst du ihn:
             </p>
+            <ol className="small" style={{ marginTop: 0, paddingLeft: 18, lineHeight: 1.7 }}>
+              <li>
+                <a
+                  href="https://github.com/settings/tokens/new?scopes=repo&description=Slicer+Scan+Upload"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  <b>Diesen Link öffnen ↗</b>
+                </a>{' '}
+                (bei GitHub anmelden). Der nötige Haken <span className="mono">repo</span> ist schon gesetzt.
+              </li>
+              <li>
+                Bei <b>Expiration</b> ein Ablaufdatum wählen (z. B. <i>No expiration</i> für dauerhaft).
+              </li>
+              <li>
+                Ganz unten den grünen Button <b>„Generate token"</b> klicken.
+              </li>
+              <li>
+                Den angezeigten Token (<span className="mono">ghp_…</span>) kopieren und hier einfügen → <b>Verbinden</b>.
+              </li>
+            </ol>
             <div className="row">
               <input
                 value={tokenDraft}
